@@ -160,9 +160,24 @@ export const UserLoginScreen: React.FC = () => {
           <div className="p-6">
             {/* Error Message */}
             {error && (
-              <div className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
+              <div className="mb-4 p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+                {(error.includes('දැනටමත් ගිණුමක් ඇත') || error.toLowerCase().includes('already')) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('login');
+                      setIdentifier(phone || name);
+                      setError(null);
+                    }}
+                    className="self-start sm:self-auto px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors whitespace-nowrap shadow-xs"
+                  >
+                    {language === 'si' ? '👉 පිවිසෙන්න (Log In)' : '👉 Log In now'}
+                  </button>
+                )}
               </div>
             )}
 
@@ -310,7 +325,7 @@ export const UserLoginScreen: React.FC = () => {
         </div>
         <div className="font-medium text-gray-600 dark:text-gray-300">
           <span>{language === 'si' ? 'නිර්මාණය කළේ ' : 'Created by '}</span>
-          <span className="text-emerald-600 dark:text-emerald-400 font-bold">Ishara Sesathpura</span> ❤️
+          <span className="text-emerald-600 dark:text-emerald-400 font-bold">Ishara Sesathpura</span>
         </div>
       </footer>
     </div>

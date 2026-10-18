@@ -1,6 +1,6 @@
 # බෝඩිම (Bodima.lk) — Boarding House Expense Management System
 
-> **Created by Ishara Sesathpura** ❤️
+> **Created by Ishara Sesathpura**
 
 බෝඩිමේ සාමාජිකයින් අතර වියදම්, කෑම මුදල්, කුලිය සහ පොදු බඩු විනිවිදභාවයෙන් කළමනාකරණය කරගැනීමට නිර්මාණය කළ වෙබ් යෙදුමකි.
 

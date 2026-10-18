@@ -1,5 +1,4 @@
 import React from 'react';
-import { Heart } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
 export const Footer: React.FC = () => {
@@ -22,7 +21,6 @@ export const Footer: React.FC = () => {
           <span className="text-emerald-600 dark:text-emerald-400 font-bold tracking-wide">
             Ishara Sesathpura
           </span>
-          <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500 inline-block animate-pulse" />
         </div>
       </div>
     </footer>

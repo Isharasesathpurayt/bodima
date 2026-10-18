@@ -98,6 +98,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const openAuthModal = () => setIsAuthModalOpen(true);
   const closeAuthModal = () => setIsAuthModalOpen(false);
 
+  const parseSafeJson = async (res: Response) => {
+    try {
+      const text = await res.text();
+      return text ? JSON.parse(text) : {};
+    } catch {
+      return { error: 'සේවාදායකයෙන් දෝෂ සහිත ප්‍රතිචාරයක් ලැබුණි (Invalid server response)' };
+    }
+  };
+
   // 1. User Login (Step 1)
   const loginUser = async (identifier: string, password?: string) => {
     try {
@@ -106,7 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier, password })
       });
-      const data = await res.json();
+      const data = await parseSafeJson(res);
       if (!res.ok) {
         return { success: false, error: data.error || 'ලොග් වීම අසාර්ථක විය' };
       }
@@ -130,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, phone, password })
       });
-      const data = await res.json();
+      const data = await parseSafeJson(res);
       if (!res.ok) {
         return { success: false, error: data.error || 'ගිණුම සෑදීම අසාර්ථක විය' };
       }
@@ -152,7 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId })
       });
-      const data = await res.json();
+      const data = await parseSafeJson(res);
       if (!res.ok) {
         return { success: false, error: data.error || 'ලොග් වීම අසාර්ථක විය' };
       }
@@ -179,7 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         body: JSON.stringify({ name, password })
       });
-      const data = await res.json();
+      const data = await parseSafeJson(res);
       if (!res.ok) {
         return { success: false, error: data.error || 'බෝඩිමට සම්බන්ධ වීම අසාර්ථක විය' };
       }
@@ -212,7 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           userId: user?.id
         })
       });
-      const data = await res.json();
+      const data = await parseSafeJson(res);
       if (!res.ok) {
         return { success: false, error: data.error || 'සම්බන්ධ වීම අසාර්ථක විය' };
       }
@@ -243,7 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           creatorPhone: creatorPhone || user?.phone
         })
       });
-      const data = await res.json();
+      const data = await parseSafeJson(res);
       if (!res.ok) {
         return { success: false, error: data.error || 'බෝඩිම ලියාපදිංචි කිරීම අසාර්ථක විය' };
       }
@@ -281,7 +290,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         body: JSON.stringify(updates)
       });
-      const data = await res.json();
+      const data = await parseSafeJson(res);
       if (!res.ok) {
         return { success: false, error: data.error || 'යාවත්කාලීන කිරීම අසාර්ථක විය' };
       }

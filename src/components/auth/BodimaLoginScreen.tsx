@@ -320,7 +320,7 @@ export const BodimaLoginScreen: React.FC = () => {
         </div>
         <div className="font-medium text-gray-600 dark:text-gray-300">
           <span>{language === 'si' ? 'නිර්මාණය කළේ ' : 'Created by '}</span>
-          <span className="text-emerald-600 dark:text-emerald-400 font-bold">Ishara Sesathpura</span> ❤️
+          <span className="text-emerald-600 dark:text-emerald-400 font-bold">Ishara Sesathpura</span>
         </div>
       </footer>
     </div>
