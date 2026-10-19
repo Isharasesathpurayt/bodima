@@ -145,22 +145,22 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const bodimaId = bodima?.id || 'b_default';
 
   const [members, setMembers] = useState<BoardingMember[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_members_${bodimaId}`);
+    const saved = localStorage.getItem(`${STORAGE_KEY}_members_${bodimaId}`) || localStorage.getItem(`${STORAGE_KEY}_members`);
     return saved ? JSON.parse(saved) : initialMembers;
   });
 
   const [collections, setCollections] = useState<CollectionPool[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_collections_${bodimaId}`);
+    const saved = localStorage.getItem(`${STORAGE_KEY}_collections_${bodimaId}`) || localStorage.getItem(`${STORAGE_KEY}_collections`);
     return saved ? JSON.parse(saved) : initialCollections;
   });
 
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_expenses_${bodimaId}`);
+    const saved = localStorage.getItem(`${STORAGE_KEY}_expenses_${bodimaId}`) || localStorage.getItem(`${STORAGE_KEY}_expenses`);
     return saved ? JSON.parse(saved) : initialExpenses;
   });
 
   const [shoppingList, setShoppingList] = useState<ShoppingRequest[]>(() => {
-    const saved = localStorage.getItem(`${STORAGE_KEY}_shopping_${bodimaId}`);
+    const saved = localStorage.getItem(`${STORAGE_KEY}_shopping_${bodimaId}`) || localStorage.getItem(`${STORAGE_KEY}_shopping`);
     return saved ? JSON.parse(saved) : initialShoppingRequests;
   });
 
@@ -169,25 +169,33 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return saved ? JSON.parse(saved) : defaultCatalogItems;
   });
 
-  // If members is empty and user is logged in, automatically add logged in user as first member
+  // Automatically add any logged in user to the Bodima's member list so everyone sees each other
   useEffect(() => {
-    if (user && members.length === 0) {
-      const initialUserMember: BoardingMember = {
-        id: user.id,
-        name: user.name,
-        roleDescriptionSi: user.roleTitleSi || 'සාමාජික / භාරකරු',
-        roleDescriptionEn: user.roleTitleEn || 'Boarder / Admin',
-        phone: user.phone || '+94',
-        avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        isActive: true,
-        eatsAtBodima: user.eatsAtBodima !== false,
-        bankDetails: user.bankDetails,
-        isCollectorFor: ['rent', 'food', 'toiletries']
-      };
-      setMembers([initialUserMember]);
-      cloudDb.saveMember(initialUserMember, bodimaId);
+    if (user && bodima) {
+      setMembers(prev => {
+        const alreadyExists = prev.some(
+          m => m.id === user.id || m.name.toLowerCase() === user.name.toLowerCase() || (user.phone && m.phone === user.phone)
+        );
+        if (alreadyExists) return prev;
+
+        const newMember: BoardingMember = {
+          id: user.id,
+          name: user.name,
+          roleDescriptionSi: user.roleTitleSi || 'සාමාජික',
+          roleDescriptionEn: user.roleTitleEn || 'Boarder',
+          phone: user.phone || '+94',
+          avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+          isActive: true,
+          eatsAtBodima: user.eatsAtBodima !== false,
+          bankDetails: user.bankDetails,
+          isCollectorFor: user.role === 'admin' ? ['rent', 'food', 'toiletries'] : []
+        };
+        const updated = [...prev, newMember];
+        cloudDb.saveMember(newMember, bodimaId);
+        return updated;
+      });
     }
-  }, [user, members.length, bodimaId]);
+  }, [user, bodima, bodimaId]);
 
   // Sync from Cloud Database (Supabase) or Backend API when Bodima changes
   useEffect(() => {
@@ -267,22 +275,26 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       .catch(() => {});
   }, [bodimaId]);
 
-  // Sync to local storage
+  // Sync to local storage - Save under BOTH bodima-specific key and global key so data never disappears on refresh
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_members_${bodimaId}`, JSON.stringify(members));
     localStorage.setItem(`${STORAGE_KEY}_members`, JSON.stringify(members));
-  }, [members]);
+  }, [members, bodimaId]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_collections_${bodimaId}`, JSON.stringify(collections));
     localStorage.setItem(`${STORAGE_KEY}_collections`, JSON.stringify(collections));
-  }, [collections]);
+  }, [collections, bodimaId]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_expenses_${bodimaId}`, JSON.stringify(expenses));
     localStorage.setItem(`${STORAGE_KEY}_expenses`, JSON.stringify(expenses));
-  }, [expenses]);
+  }, [expenses, bodimaId]);
 
   useEffect(() => {
+    localStorage.setItem(`${STORAGE_KEY}_shopping_${bodimaId}`, JSON.stringify(shoppingList));
     localStorage.setItem(`${STORAGE_KEY}_shopping`, JSON.stringify(shoppingList));
-  }, [shoppingList]);
+  }, [shoppingList, bodimaId]);
 
   useEffect(() => {
     localStorage.setItem(`${STORAGE_KEY}_catalog`, JSON.stringify(catalog));
