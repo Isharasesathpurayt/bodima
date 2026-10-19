@@ -193,7 +193,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     // 1. Try fetching from Supabase first if configured
     cloudDb.getMembers(bodimaId).then(cloudMembers => {
-      if (cloudMembers && cloudMembers.length > 0) {
+      if (cloudMembers !== null) {
         setMembers(cloudMembers);
       } else {
         // Fallback to Backend API
@@ -221,7 +221,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     cloudDb.getCollections(bodimaId).then(cloudCollections => {
-      if (cloudCollections && cloudCollections.length > 0) {
+      if (cloudCollections !== null) {
         setCollections(cloudCollections);
       } else {
         apiFetch(`/api/collections?bodimaId=${bodimaId}`)
@@ -234,7 +234,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     cloudDb.getExpenses(bodimaId).then(cloudExpenses => {
-      if (cloudExpenses && cloudExpenses.length > 0) {
+      if (cloudExpenses !== null) {
         setExpenses(cloudExpenses);
       } else {
         apiFetch(`/api/expenses?bodimaId=${bodimaId}`)
@@ -247,7 +247,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     cloudDb.getShopping(bodimaId).then(cloudShopping => {
-      if (cloudShopping && cloudShopping.length > 0) {
+      if (cloudShopping !== null) {
         setShoppingList(cloudShopping);
       } else {
         apiFetch(`/api/shopping?bodimaId=${bodimaId}`)

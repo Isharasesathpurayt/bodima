@@ -11,14 +11,15 @@ import {
   Sun,
   Moon,
   Home,
-  AlertCircle
+  AlertCircle,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 
 export const UserLoginScreen: React.FC = () => {
-  const { loginUser, registerUser } = useAuth();
+  const { loginUser, registerUser, openSettings } = useAuth();
   const { language, toggleLanguage } = useLanguage();
   const { theme, toggleTheme } = useTheme();
 
@@ -83,6 +84,16 @@ export const UserLoginScreen: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Database / Settings Toggle */}
+          <button
+            type="button"
+            onClick={openSettings}
+            className="p-2 rounded-xl text-emerald-600 dark:text-emerald-400 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 border border-gray-200 dark:border-slate-700 shadow-xs transition-colors"
+            title={language === 'si' ? 'ඩේටාබේස් සහ සැකසුම්' : 'Database & Settings'}
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+
           {/* Language Toggle */}
           <button
             onClick={toggleLanguage}

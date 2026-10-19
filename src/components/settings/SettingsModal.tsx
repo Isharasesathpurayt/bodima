@@ -175,18 +175,30 @@ export const SettingsModal: React.FC = () => {
 
   const handleShareInvite = () => {
     if (!bodima) return;
+    const { url: sbUrl, anonKey: sbKey } = getSupabaseConfig();
+    let inviteUrl = window.location.origin;
+    if (sbUrl && sbKey) {
+      inviteUrl = `${inviteUrl}?db_url=${encodeURIComponent(sbUrl)}&db_key=${encodeURIComponent(sbKey)}`;
+    }
+
     const shareText = language === 'si'
-      ? `මචං, අපේ බෝඩිමේ වියදම්, කෑම සල්ලි සහ බිල්පත් බලන්න bodima.lk එකට ඇවිල්ලා:\n\n🏠 බෝඩිමේ නම: ${bodima.name}\n🔑 මුරපදය: ${bodima.password || '1234'}\n\nසම්බන්ධ වෙන්න! 🙏`
-      : `Hey! Check out our boarding house expenses and bills on bodima.lk:\n\n🏠 Bodima Name: ${bodima.name}\n🔑 Password: ${bodima.password || '1234'}\n\nJoin us! 🙏`;
+      ? `මචං, අපේ බෝඩිමේ (${bodima.name}) වියදම්, කෑම සල්ලි සහ බිල්පත් බලන්න bodima.lk එකට මෙන්න ලින්ක් එක:\n\n🔗 ${inviteUrl}\n🏠 බෝඩිමේ නම: ${bodima.name}\n🔑 මුරපදය: ${bodima.password || '1234'}\n\nලින්ක් එක ඔබලා කෙලින්ම සම්බන්ධ වෙන්න! 🙏`
+      : `Hey! Check out our boarding house (${bodima.name}) expenses and bills on bodima.lk:\n\n🔗 ${inviteUrl}\n🏠 Bodima Name: ${bodima.name}\n🔑 Password: ${bodima.password || '1234'}\n\nClick link to join us directly! 🙏`;
     const waUrl = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
     window.open(waUrl, '_blank');
   };
 
   const handleCopyCredentials = () => {
     if (!bodima) return;
+    const { url: sbUrl, anonKey: sbKey } = getSupabaseConfig();
+    let inviteUrl = window.location.origin;
+    if (sbUrl && sbKey) {
+      inviteUrl = `${inviteUrl}?db_url=${encodeURIComponent(sbUrl)}&db_key=${encodeURIComponent(sbKey)}`;
+    }
+
     const creds = language === 'si'
-      ? `බෝඩිමේ නම: ${bodima.name}\nමුරපදය: ${bodima.password || '1234'}`
-      : `Bodima Name: ${bodima.name}\nPassword: ${bodima.password || '1234'}`;
+      ? `🔗 ලින්ක් එක: ${inviteUrl}\n🏠 බෝඩිමේ නම: ${bodima.name}\n🔑 මුරපදය: ${bodima.password || '1234'}`
+      : `🔗 Link: ${inviteUrl}\n🏠 Bodima Name: ${bodima.name}\n🔑 Password: ${bodima.password || '1234'}`;
     navigator.clipboard.writeText(creds);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

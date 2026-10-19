@@ -38,12 +38,22 @@ const AppRoot: React.FC = () => {
 
   // Step 1: User must log in first (පළමුව පරිශීලක පිවිසුම)
   if (!user) {
-    return <UserLoginScreen />;
+    return (
+      <>
+        <UserLoginScreen />
+        <SettingsModal />
+      </>
+    );
   }
 
   // Step 2: Once user is logged in, they must connect or log into their Bodima (ඊටපස්සේ බෝඩිමට ලොග් වීම)
   if (!bodima) {
-    return <BodimaLoginScreen />;
+    return (
+      <>
+        <BodimaLoginScreen />
+        <SettingsModal />
+      </>
+    );
   }
 
   // Step 3: Both User and Bodima are authenticated -> Show Full App

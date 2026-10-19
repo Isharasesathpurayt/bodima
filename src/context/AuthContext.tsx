@@ -619,7 +619,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('bodima_current_house');
   };
 
-  const isCollectorOrAdmin = user?.role === 'admin' || user?.role === 'collector';
+  // Any user connected to the Bodima can view and manage collection dashboard
+  const isCollectorOrAdmin = Boolean(bodima && bodima.id);
   const isBodimaConnected = Boolean(bodima && bodima.id);
 
   return (

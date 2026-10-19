@@ -1,5 +1,20 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
+// Check if URL has ?db_url=...&db_key=... for instant 1-click sharing across roommates' phones
+try {
+  if (typeof window !== 'undefined') {
+    const params = new URLSearchParams(window.location.search);
+    const qUrl = params.get('db_url');
+    const qKey = params.get('db_key');
+    if (qUrl && qKey) {
+      localStorage.setItem('bodima_supabase_url', qUrl.trim());
+      localStorage.setItem('bodima_supabase_anon_key', qKey.trim());
+      // Clean query params from address bar
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }
+} catch {}
+
 // Get Supabase credentials from LocalStorage or environment variables
 export const getSupabaseConfig = () => {
   const url = localStorage.getItem('bodima_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
