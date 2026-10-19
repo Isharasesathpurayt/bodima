@@ -15,10 +15,14 @@ try {
   }
 } catch {}
 
-// Get Supabase credentials from LocalStorage or environment variables
+// Built-in Default Supabase Cloud Database Configuration
+export const DEFAULT_SUPABASE_URL = 'https://raorqkbudgikxlzbqxpn.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_7LP-MDQDmnFmQrxHxOiJtA_YIYssFng';
+
+// Get Supabase credentials from LocalStorage or environment variables or defaults
 export const getSupabaseConfig = () => {
-  const url = localStorage.getItem('bodima_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
-  const anonKey = localStorage.getItem('bodima_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  const url = localStorage.getItem('bodima_supabase_url') || import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const anonKey = localStorage.getItem('bodima_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
   return {
     url: url.trim(),
     anonKey: anonKey.trim(),
@@ -170,11 +174,22 @@ ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shopping_requests ENABLE ROW LEVEL SECURITY;
 
--- Allow anonymous access using Anon Key
+-- Allow anonymous access using Anon / Publishable Key
+DROP POLICY IF EXISTS "Public bodimas access" ON bodimas;
 CREATE POLICY "Public bodimas access" ON bodimas FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public users access" ON users;
 CREATE POLICY "Public users access" ON users FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public collections access" ON collections;
 CREATE POLICY "Public collections access" ON collections FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public payments access" ON payments;
 CREATE POLICY "Public payments access" ON payments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public expenses access" ON expenses;
 CREATE POLICY "Public expenses access" ON expenses FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public shopping access" ON shopping_requests;
 CREATE POLICY "Public shopping access" ON shopping_requests FOR ALL USING (true) WITH CHECK (true);
 `;
