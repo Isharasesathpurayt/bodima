@@ -326,27 +326,6 @@ app.post('/api/bodima/register', (req, res) => {
           VALUES (?, ?, ?, ?, ?, 'admin', 'මාසික කුලී භාරකරු', 'Rent Collector / Admin', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', ?, ?)
         `).run(creatorId, finalCreatorName, finalCreatorPhone, `${creatorId}@bodima.lk`, passwordHash, bodimaId, today);
       }
-
-      // Create initial 3 standard collection pools for this new Bodima
-      const insertCol = db.prepare(`
-        INSERT INTO collections (id, bodima_id, title_si, title_en, category, collector_id, target_per_person, due_date, cycle, description_si, description_en, participating_member_ids, is_completed, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
-      `);
-
-      const col1 = `col_${Date.now()}_1`;
-      const col2 = `col_${Date.now()}_2`;
-      const col3 = `col_${Date.now()}_3`;
-      const initialParticipants = JSON.stringify([creatorId]);
-
-      insertCol.run(col1, bodimaId, 'මාසික බෝඩිම් කුලිය', 'Monthly Rent', 'rent', creatorId, 12000, today, 'monthly', 'මාසික බෝඩිම් කුලිය', 'Monthly rent', initialParticipants, today);
-      insertCol.run(col2, bodimaId, 'සතිපතා කෑම මුදල්', 'Weekly Food Fund', 'food', creatorId, 1800, today, 'weekly', 'කෑම සහ එළවලු සඳහා', 'Weekly food', initialParticipants, today);
-      insertCol.run(col3, bodimaId, 'සබන් සහ පොදු බඩු', 'Soap & Shared Supplies', 'toiletries', creatorId, 550, today, 'one-time', 'පොදු පිරිසිදුකාරක සඳහා', 'Toiletries', initialParticipants, today);
-
-      // Add creator to payments
-      const insertPay = db.prepare('INSERT INTO payments (id, collection_id, user_id, amount, is_paid) VALUES (?, ?, ?, ?, 0)');
-      insertPay.run(`p_${Date.now()}_1`, col1, creatorId, 12000);
-      insertPay.run(`p_${Date.now()}_2`, col2, creatorId, 1800);
-      insertPay.run(`p_${Date.now()}_3`, col3, creatorId, 550);
     });
 
     runRegistration();

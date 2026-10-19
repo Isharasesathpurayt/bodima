@@ -18,6 +18,8 @@ import {
 import { defaultCatalogItems } from '../i18n/defaultCatalog';
 import { useLanguage } from './LanguageContext';
 import { useAuth } from './AuthContext';
+import { cloudDb } from '../lib/cloudDb';
+import { apiFetch } from '../lib/apiClient';
 
 export interface OverdueItem {
   poolId: string;
@@ -122,13 +124,22 @@ interface BodimaContextType {
   resetToDefaultData: () => void;
 }
 
-const STORAGE_KEY = 'bodima_state_v1';
+const STORAGE_KEY = 'bodima_state_v3';
+
+// Clear legacy dummy test data from previous versions
+try {
+  Object.keys(localStorage).forEach(key => {
+    if (key.startsWith('bodima_state_v1') || key.startsWith('bodima_state_v2')) {
+      localStorage.removeItem(key);
+    }
+  });
+} catch {}
 
 const BodimaContext = createContext<BodimaContextType | undefined>(undefined);
 
 export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { language } = useLanguage();
-  const { bodima } = useAuth();
+  const { bodima, user } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('home');
 
   const bodimaId = bodima?.id || 'b_default';
@@ -158,51 +169,97 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return saved ? JSON.parse(saved) : defaultCatalogItems;
   });
 
-  // Sync from SQLite Database when Bodima changes
+  // If members is empty and user is logged in, automatically add logged in user as first member
   useEffect(() => {
-    fetch(`/api/users?bodimaId=${bodimaId}`)
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => {
-        if (data && data.length) {
-          setMembers(
-            data.map((u: any) => ({
-              id: u.id,
-              name: u.name,
-              phone: u.phone,
-              roleDescriptionSi: u.roleTitleSi || 'සාමාජික',
-              roleDescriptionEn: u.roleTitleEn || 'Boarder',
-              avatar: u.avatar,
-              isActive: Boolean(u.isActive),
-              eatsAtBodima: u.eatsAtBodima !== false,
-              bankDetails: u.bankDetails
-            }))
-          );
-        }
-      })
-      .catch(() => {});
+    if (user && members.length === 0) {
+      const initialUserMember: BoardingMember = {
+        id: user.id,
+        name: user.name,
+        roleDescriptionSi: user.roleTitleSi || 'සාමාජික / භාරකරු',
+        roleDescriptionEn: user.roleTitleEn || 'Boarder / Admin',
+        phone: user.phone || '+94',
+        avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+        isActive: true,
+        eatsAtBodima: user.eatsAtBodima !== false,
+        bankDetails: user.bankDetails,
+        isCollectorFor: ['rent', 'food', 'toiletries']
+      };
+      setMembers([initialUserMember]);
+      cloudDb.saveMember(initialUserMember, bodimaId);
+    }
+  }, [user, members.length, bodimaId]);
 
-    fetch(`/api/collections?bodimaId=${bodimaId}`)
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => {
-        if (data && data.length) setCollections(data);
-      })
-      .catch(() => {});
+  // Sync from Cloud Database (Supabase) or Backend API when Bodima changes
+  useEffect(() => {
+    // 1. Try fetching from Supabase first if configured
+    cloudDb.getMembers(bodimaId).then(cloudMembers => {
+      if (cloudMembers && cloudMembers.length > 0) {
+        setMembers(cloudMembers);
+      } else {
+        // Fallback to Backend API
+        apiFetch(`/api/users?bodimaId=${bodimaId}`)
+          .then(r => (r.ok ? r.json() : null))
+          .then(data => {
+            if (data && data.length) {
+              setMembers(
+                data.map((u: any) => ({
+                  id: u.id,
+                  name: u.name,
+                  phone: u.phone,
+                  roleDescriptionSi: u.roleTitleSi || 'සාමාජික',
+                  roleDescriptionEn: u.roleTitleEn || 'Boarder',
+                  avatar: u.avatar,
+                  isActive: Boolean(u.isActive),
+                  eatsAtBodima: u.eatsAtBodima !== false,
+                  bankDetails: u.bankDetails
+                }))
+              );
+            }
+          })
+          .catch(() => {});
+      }
+    });
 
-    fetch(`/api/expenses?bodimaId=${bodimaId}`)
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => {
-        if (data && data.length) setExpenses(data);
-      })
-      .catch(() => {});
+    cloudDb.getCollections(bodimaId).then(cloudCollections => {
+      if (cloudCollections && cloudCollections.length > 0) {
+        setCollections(cloudCollections);
+      } else {
+        apiFetch(`/api/collections?bodimaId=${bodimaId}`)
+          .then(r => (r.ok ? r.json() : null))
+          .then(data => {
+            if (data && data.length) setCollections(data);
+          })
+          .catch(() => {});
+      }
+    });
 
-    fetch(`/api/shopping?bodimaId=${bodimaId}`)
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => {
-        if (data && data.length) setShoppingList(data);
-      })
-      .catch(() => {});
+    cloudDb.getExpenses(bodimaId).then(cloudExpenses => {
+      if (cloudExpenses && cloudExpenses.length > 0) {
+        setExpenses(cloudExpenses);
+      } else {
+        apiFetch(`/api/expenses?bodimaId=${bodimaId}`)
+          .then(r => (r.ok ? r.json() : null))
+          .then(data => {
+            if (data && data.length) setExpenses(data);
+          })
+          .catch(() => {});
+      }
+    });
 
-    fetch('/api/catalog')
+    cloudDb.getShopping(bodimaId).then(cloudShopping => {
+      if (cloudShopping && cloudShopping.length > 0) {
+        setShoppingList(cloudShopping);
+      } else {
+        apiFetch(`/api/shopping?bodimaId=${bodimaId}`)
+          .then(r => (r.ok ? r.json() : null))
+          .then(data => {
+            if (data && data.length) setShoppingList(data);
+          })
+          .catch(() => {});
+      }
+    });
+
+    apiFetch('/api/catalog')
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
         if (data && data.length) setCatalog(data);
@@ -242,6 +299,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       id: `m_${Date.now()}`
     };
     setMembers(prev => [...prev, newMember]);
+    cloudDb.saveMember(newMember, bodimaId);
 
     // Also add to any existing active collection pools as unpaid
     setCollections(prev =>
@@ -265,7 +323,14 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const updateMember = (id: string, updates: Partial<BoardingMember>) => {
-    setMembers(prev => prev.map(m => (m.id === id ? { ...m, ...updates } : m)));
+    setMembers(prev => prev.map(m => {
+      if (m.id === id) {
+        const updated = { ...m, ...updates };
+        cloudDb.saveMember(updated, bodimaId);
+        return updated;
+      }
+      return m;
+    }));
   };
 
   const deleteMember = (id: string) => {
@@ -316,10 +381,11 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     setCollections(prev => [newPool, ...prev]);
+    cloudDb.saveCollection(newPool);
 
-    // Send to SQLite backend
+    // Send to backend
     const token = localStorage.getItem('bodima_jwt_token');
-    fetch('/api/collections', {
+    apiFetch('/api/collections', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -341,9 +407,10 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     method?: 'cash' | 'transfer',
     note?: string
   ) => {
-    // Send to SQLite Database
+    // Sync to Cloud DB & Backend
+    cloudDb.updatePayment(poolId, memberId, isPaid, method, note);
     const token = localStorage.getItem('bodima_jwt_token');
-    fetch(`/api/collections/${poolId}/payments/${memberId}`, {
+    apiFetch(`/api/collections/${poolId}/payments/${memberId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -379,9 +446,9 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const completeCollectionPool = (id: string, isCompleted: boolean = true) => {
-    // Send to SQLite backend
+    // Send to backend
     const token = localStorage.getItem('bodima_jwt_token');
-    fetch(`/api/collections/${id}/complete`, {
+    apiFetch(`/api/collections/${id}/complete`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -391,14 +458,21 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }).catch(err => console.error('Failed to complete collection on backend:', err));
 
     setCollections(prev =>
-      prev.map(p => (p.id === id ? { ...p, isCompleted } : p))
+      prev.map(p => {
+        if (p.id === id) {
+          const updated = { ...p, isCompleted };
+          cloudDb.saveCollection(updated);
+          return updated;
+        }
+        return p;
+      })
     );
   };
 
   const deleteCollectionPool = (id: string) => {
-    // Send to SQLite backend
+    // Send to backend
     const token = localStorage.getItem('bodima_jwt_token');
-    fetch(`/api/collections/${id}`, {
+    apiFetch(`/api/collections/${id}`, {
       method: 'DELETE',
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -412,13 +486,33 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const addExpense = (expenseData: Omit<ExpenseItem, 'id'>) => {
     const newExpense: ExpenseItem = {
       ...expenseData,
-      id: `exp_${Date.now()}`
+      id: `exp_${Date.now()}`,
+      bodimaId
     };
     setExpenses(prev => [newExpense, ...prev]);
+    cloudDb.saveExpense(newExpense);
+
+    const token = localStorage.getItem('bodima_jwt_token');
+    apiFetch('/api/expenses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({ ...newExpense, bodimaId })
+    }).catch(() => {});
   };
 
   const deleteExpense = (id: string) => {
     setExpenses(prev => prev.filter(e => e.id !== id));
+    cloudDb.deleteExpense(id);
+    const token = localStorage.getItem('bodima_jwt_token');
+    apiFetch(`/api/expenses/${id}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    }).catch(() => {});
   };
 
   // Catalog actions
@@ -490,6 +584,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const newRequest: ShoppingRequest = {
       id: `req_${Date.now()}`,
+      bodimaId,
       catalogItemId: catalogId,
       nameSi: requestData.nameSi,
       nameEn: requestData.nameEn || requestData.nameSi,
@@ -504,6 +599,17 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     setShoppingList(prev => [newRequest, ...prev]);
+    cloudDb.saveShopping(newRequest);
+
+    const token = localStorage.getItem('bodima_jwt_token');
+    apiFetch('/api/shopping', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify(newRequest)
+    }).catch(() => {});
   };
 
   const toggleVoteShoppingRequest = (requestId: string, memberId: string) => {
@@ -511,24 +617,34 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       prev.map(item => {
         if (item.id !== requestId) return item;
         const hasVoted = item.votes.includes(memberId);
-        return {
+        const updated = {
           ...item,
           votes: hasVoted
             ? item.votes.filter(id => id !== memberId)
             : [...item.votes, memberId]
         };
+        cloudDb.saveShopping(updated);
+        return updated;
       })
     );
   };
 
   const togglePurchasedShoppingRequest = (requestId: string) => {
     setShoppingList(prev =>
-      prev.map(item => (item.id === requestId ? { ...item, isPurchased: !item.isPurchased } : item))
+      prev.map(item => {
+        if (item.id === requestId) {
+          const updated = { ...item, isPurchased: !item.isPurchased };
+          cloudDb.saveShopping(updated);
+          return updated;
+        }
+        return item;
+      })
     );
   };
 
   const deleteShoppingRequest = (requestId: string) => {
     setShoppingList(prev => prev.filter(item => item.id !== requestId));
+    cloudDb.deleteShopping(requestId);
   };
 
   const convertShoppingListToExpense = (paidById: string, receiptUrl?: string) => {

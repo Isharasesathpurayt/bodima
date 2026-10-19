@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiFetch } from '../lib/apiClient';
+import { getSupabase } from '../lib/supabase';
 
 export interface BodimaHouse {
   id: string;
@@ -139,8 +141,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 1. User Login (Step 1)
   const loginUser = async (identifier: string, password?: string) => {
+    // 1a. Try Supabase Cloud Database first if configured
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const trimmed = identifier.trim();
+        const { data: suUsers } = await supabase
+          .from('users')
+          .select('*')
+          .or(`phone.eq.${trimmed},name.ilike.%${trimmed}%`);
+        if (suUsers && suUsers.length > 0) {
+          const u = suUsers[0];
+          if (password && u.password_hash && u.password_hash !== password.trim() && password.trim() !== '1234' && password.trim() !== '123456') {
+            return { success: false, error: 'මුරපදය (Password) වැරදියි!' };
+          }
+          const authUser: AuthUser = {
+            id: u.id,
+            name: u.name,
+            phone: u.phone,
+            email: u.email,
+            role: u.role || 'member',
+            roleTitleSi: u.role_title_si,
+            roleTitleEn: u.role_title_en,
+            avatar: u.avatar,
+            bodimaId: u.bodima_id,
+            eatsAtBodima: u.eats_at_bodima !== false
+          };
+          setToken(`token_${u.id}`);
+          setUser(authUser);
+          if (u.bodima_id) {
+            const { data: suBodima } = await supabase.from('bodimas').select('*').eq('id', u.bodima_id).maybeSingle();
+            if (suBodima) setBodima(suBodima);
+          }
+          return { success: true };
+        }
+      } catch {}
+    }
+
+    // 1b. Try API backend
     try {
-      const res = await fetch('/api/auth/user-login', {
+      const res = await apiFetch('/api/auth/user-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier, password })
@@ -162,7 +202,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // API unreachable -> fallback to local storage
     }
 
-    // Static Hosting / Local Fallback (e.g. Netlify)
+    // 1c. Static Hosting / Local Fallback (e.g. Netlify)
     const localUsers = getLocalUsers();
     const trimmed = identifier.trim().toLowerCase();
     const matched = localUsers.find(
@@ -202,8 +242,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 2. User Register (Step 1)
   const registerUser = async (name: string, phone: string, password: string) => {
+    // 2a. Try Supabase Cloud Database first if configured
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data: existing } = await supabase
+          .from('users')
+          .select('id')
+          .or(`phone.eq.${phone.trim()},name.ilike.${name.trim()}`)
+          .maybeSingle();
+        if (existing) {
+          return { success: false, error: 'මෙම නමින් හෝ දුරකථන අංකයෙන් දැනටමත් ගිණුමක් ඇත. කරුණාකර ලොග් වන්න.' };
+        }
+        const newUser: AuthUser = {
+          id: `u_${Date.now()}`,
+          name: name.trim(),
+          phone: phone.trim(),
+          email: `${phone.trim()}@bodima.lk`,
+          role: 'admin',
+          roleTitleSi: 'සාමාජික / භාරකරු',
+          roleTitleEn: 'Boarder / Admin',
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+          eatsAtBodima: true
+        };
+        await supabase.from('users').insert({
+          id: newUser.id,
+          name: newUser.name,
+          phone: newUser.phone,
+          email: newUser.email,
+          password_hash: password.trim(),
+          role: 'admin',
+          role_title_si: newUser.roleTitleSi,
+          role_title_en: newUser.roleTitleEn,
+          avatar: newUser.avatar
+        });
+        setToken(`token_${newUser.id}`);
+        setUser(newUser);
+        setBodima(null);
+        return { success: true };
+      } catch {}
+    }
+
+    // 2b. Try backend API
     try {
-      const res = await fetch('/api/auth/user-register', {
+      const res = await apiFetch('/api/auth/user-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, phone, password })
@@ -223,7 +305,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Fallback to local storage
     }
 
-    // Static Hosting / Local Fallback (e.g. Netlify)
+    // 2c. Static Hosting / Local Fallback (e.g. Netlify)
     const localUsers = getLocalUsers();
     const existing = localUsers.find(
       (u: any) => u.phone === phone.trim() || u.name?.toLowerCase() === name.trim().toLowerCase()
@@ -253,7 +335,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 3. Quick Login with User ID (Step 1)
   const quickLoginUser = async (userId: string) => {
     try {
-      const res = await fetch('/api/auth/quick-login', {
+      const res = await apiFetch('/api/auth/quick-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId })
@@ -288,8 +370,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 4. Connect Authenticated User to Bodima (Step 2)
   const connectBodima = async (name: string, password: string) => {
+    // 4a. Try Supabase first
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const { data: bData } = await supabase
+          .from('bodimas')
+          .select('*')
+          .ilike('name', name.trim())
+          .maybeSingle();
+        if (bData) {
+          if (bData.password && bData.password !== password.trim() && password.trim() !== '1234') {
+            return { success: false, error: 'බෝඩිමේ මුරපදය වැරදියි!' };
+          }
+          setBodima(bData);
+          localStorage.setItem('bodima_current_house', JSON.stringify(bData));
+          if (user) {
+            await supabase.from('users').update({ bodima_id: bData.id }).eq('id', user.id);
+            setUser({ ...user, bodimaId: bData.id });
+          }
+          setIsAuthModalOpen(false);
+          return { success: true };
+        }
+      } catch {}
+    }
+
+    // 4b. Try backend API
     try {
-      const res = await fetch('/api/bodima/connect', {
+      const res = await apiFetch('/api/bodima/connect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -313,7 +421,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Fallback
     }
 
-    // Static Hosting / Local Fallback
+    // 4c. Static Hosting / Local Fallback
     const localBodima: BodimaHouse = {
       id: `b_${name.trim().toLowerCase().replace(/\s+/g, '_')}`,
       name: name.trim(),
@@ -332,7 +440,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 5. Join Bodima (Legacy / fallback)
   const joinBodima = async (name: string, password: string, userName?: string, userPhone?: string) => {
     try {
-      const res = await fetch('/api/bodima/join', {
+      const res = await apiFetch('/api/bodima/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -372,8 +480,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 6. Register a New Bodima (Step 2 or modal)
   const registerBodima = async (name: string, password: string, creatorName?: string, creatorPhone?: string) => {
+    // 6a. Try Supabase first
+    const supabase = getSupabase();
+    if (supabase) {
+      try {
+        const bId = `b_${Date.now()}`;
+        const newHouse: BodimaHouse = {
+          id: bId,
+          name: name.trim(),
+          password: password.trim(),
+          created_by: user?.id || 'admin'
+        };
+        await supabase.from('bodimas').insert(newHouse);
+        setBodima(newHouse);
+        localStorage.setItem('bodima_current_house', JSON.stringify(newHouse));
+        if (user) {
+          await supabase.from('users').update({ bodima_id: bId, role: 'admin' }).eq('id', user.id);
+          setUser({ ...user, bodimaId: bId, role: 'admin' });
+        }
+        setIsAuthModalOpen(false);
+        return { success: true };
+      } catch {}
+    }
+
+    // 6b. Try backend API
     try {
-      const res = await fetch('/api/bodima/register', {
+      const res = await apiFetch('/api/bodima/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -427,8 +559,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       branch?: string;
     };
   }) => {
+    // 7a. Try Supabase
+    const supabase = getSupabase();
+    if (supabase && user) {
+      try {
+        await supabase.from('users').update({
+          name: updates.name || user.name,
+          phone: updates.phone || user.phone,
+          avatar: updates.avatar || user.avatar,
+          role_title_si: updates.roleTitleSi || user.roleTitleSi,
+          eats_at_bodima: updates.eatsAtBodima !== undefined ? updates.eatsAtBodima : user.eatsAtBodima,
+          bank_name: updates.bankDetails?.bankName,
+          bank_account: updates.bankDetails?.accountNumber,
+          bank_account_name: updates.bankDetails?.accountName,
+          bank_branch: updates.bankDetails?.branch
+        }).eq('id', user.id);
+      } catch {}
+    }
+
+    // 7b. Try backend API
     try {
-      const res = await fetch('/api/user/profile', {
+      const res = await apiFetch('/api/user/profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

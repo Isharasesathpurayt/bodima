@@ -139,52 +139,58 @@ export const DashboardView: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {recentExpenses.map(expense => {
-              const payer = getMemberById(expense.paidById);
-              const title = language === 'si' ? expense.titleSi : expense.titleEn;
+            {recentExpenses.length > 0 ? (
+              recentExpenses.map(expense => {
+                const payer = getMemberById(expense.paidById);
+                const title = language === 'si' ? expense.titleSi : expense.titleEn;
 
-              return (
-                <div
-                  key={expense.id}
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/90 dark:border-slate-800 p-4 shadow-sm hover:shadow-md transition-all flex items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={payer?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80'}
-                      alt={payer?.name}
-                      className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-500/20 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-xs text-gray-900 dark:text-white truncate">
-                        {title}
-                      </h4>
-                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                        {payer?.name} • {expense.date}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-right">
-                      <div className="text-sm font-black text-blue-600 dark:text-blue-400">
-                        {t.common.lkr} {expense.amount.toLocaleString()}
+                return (
+                  <div
+                    key={expense.id}
+                    className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/90 dark:border-slate-800 p-4 shadow-sm hover:shadow-md transition-all flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img
+                        src={payer?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80'}
+                        alt={payer?.name}
+                        className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-500/20 shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-xs text-gray-900 dark:text-white truncate">
+                          {title}
+                        </h4>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                          {payer?.name} • {expense.date}
+                        </p>
                       </div>
                     </div>
 
-                    {expense.receiptUrl && (
-                      <button
-                        onClick={() => setViewingReceiptExpense(expense)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-colors"
-                        title="View Bill Receipt"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">{language === 'si' ? 'බිල්පත' : 'Bill'}</span>
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <div className="text-sm font-black text-blue-600 dark:text-blue-400">
+                          {t.common.lkr} {expense.amount.toLocaleString()}
+                        </div>
+                      </div>
+
+                      {expense.receiptUrl && (
+                        <button
+                          onClick={() => setViewingReceiptExpense(expense)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-colors"
+                          title="View Bill Receipt"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">{language === 'si' ? 'බිල්පත' : 'Bill'}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/80 dark:border-slate-800 p-8 text-center text-xs text-gray-500">
+                {language === 'si' ? 'දැනට වියදම් සටහන් කර නොමැත.' : 'No expenses recorded yet.'}
+              </div>
+            )}
           </div>
         </div>
       </div>
