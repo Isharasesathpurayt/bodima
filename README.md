@@ -28,47 +28,13 @@
 
 ---
 
-## 🚀 Render.com හි නොමිලේ Host කරන ආකාරය (Step-by-Step)
+## 🚀 Render deployment
 
-### පියවර 1: GitHub වෙත Code එක Push කිරීම
+This repository includes a Render Blueprint in `render.yaml`. Connect the GitHub repository to Render and create the Blueprint service. It builds the React app and starts the Express API in one service, creates a random `JWT_SECRET`, and stores SQLite under `/var/data`.
 
-1. ඔබේ පරිගණකයේ Terminal එකක් (PowerShell / Command Prompt) විවෘත කරන්න.
-2. පහත විධාන ක්‍රියාත්මක කරන්න:
-   ```bash
-   git add .
-   git commit -m "Complete Bodima.lk app by Ishara Sesathpura"
-   ```
-3. [GitHub.com](https://github.com) වෙත ගොස් අලුත් Repository එකක් සාදන්න (උදා: `bodima.lk`).
-4. GitHub හි පෙන්වන Remote Link එක සම්බන්ධ කර push කරන්න:
-   ```bash
-   git branch -M main
-   git remote add origin https://github.com/<YOUR_GITHUB_USERNAME>/bodima.lk.git
-   git push -u origin main
-   ```
+The Blueprint uses a paid Starter web service and a 1 GB persistent disk. Render Free web services cannot attach persistent disks, so they are unsuitable for keeping SQLite data across restarts. Current listed pricing is $7/month for Starter compute plus $0.25/GB/month for the disk, before any applicable taxes or usage charges. The Blueprint disables automatic deploys; enable them only after the first deploy is reviewed.
 
----
-
-### පියවර 2: Render.com හි Web Service එකක් සෑදීම
-
-1. [Render.com](https://render.com) වෙත ගොස් ඔබගේ GitHub ගිණුමෙන් නොමිලේ Log in / Sign up වන්න.
-2. Dashboard එකේ දකුණු පස උඩ ඇති **New +** බොත්තම ඔබා **Web Service** තෝරන්න.
-3. ඔබ GitHub වෙත push කළ **bodima.lk** repository එක තෝරා **Connect** කරන්න.
-4. පහත විස්තර ලබා දෙන්න:
-   - **Name**: `bodima` (හෝ කැමති නමක්)
-   - **Region**: `Singapore` (ශ්‍රී ලංකාවට ආසන්නතම වේගවත් සර්වර් කලාපය)
-   - **Branch**: `main`
-   - **Runtime**: `Node`
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `npm start`
-   - **Instance Type**: `Free`
-5. පිටුවේ පහළින් ඇති **Deploy Web Service** (හෝ Create Web Service) බොත්තම ඔබන්න.
-
----
-
-### පියවර 3: Live Link එක ලබාගැනීම!
-
-මිනිත්තු 1-2 කින් Render මගින් Build එක සම්පූර්ණ කර ඔබට නොමිලේ Live URL එකක් ලබා දෙනු ඇත:
-👉 `https://bodima-xxxx.onrender.com`
+After creating the service, Render assigns an `onrender.com` URL. Set `JWT_SECRET` only in Render's environment settings if you replace the generated value. Do not commit `.env` files or database files.
 
 ---
 
@@ -85,3 +51,9 @@ npm run dev
 npm run build
 npm start
 ```
+
+### Database storage
+
+The Node server uses SQLite at `data/bodima.db` by default. To put the database on a persistent disk provided by your host, set `DATABASE_PATH` to a file on that disk (for example, `/var/data/bodima.db`) before starting the server. Without a persistent disk, some hosts erase SQLite data when the service restarts or redeploys.
+
+In **Settings → Database**, use **Test Connection** to check the configured Supabase project or the SQLite API. A successful result confirms the server can open its database; it does not replace configuring a persistent disk on a hosted service.

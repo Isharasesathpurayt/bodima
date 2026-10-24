@@ -15,5 +15,8 @@ export const saveCustomApiUrl = (url: string) => {
 export const apiFetch = (endpoint: string, init?: RequestInit): Promise<Response> => {
   const customUrl = getCustomApiUrl();
   const url = customUrl ? `${customUrl}${endpoint}` : endpoint;
-  return fetch(url, init);
+  const headers = new Headers(init?.headers);
+  const token = localStorage.getItem('bodima_jwt_token');
+  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+  return fetch(url, { ...init, headers });
 };

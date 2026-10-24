@@ -21,7 +21,7 @@ const MainContent: React.FC = () => {
   const { activeTab } = useBodima();
 
   return (
-    <main className="max-w-4xl mx-auto px-4 py-5 flex-1 w-full">
+    <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1 w-full">
       {(activeTab === 'home' || !activeTab) && <HomeView />}
       {activeTab === 'shopping' && <ShoppingListView />}
       {activeTab === 'expenses' && <ExpenseListView />}
@@ -58,7 +58,7 @@ const AppRoot: React.FC = () => {
 
   // Step 3: Both User and Bodima are authenticated -> Show Full App
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
+    <div className="min-h-screen flex flex-col bg-[#f7f7f3] dark:bg-[#101713] text-gray-900 dark:text-gray-100 transition-colors duration-200">
       <Navbar />
       <MainContent />
       <Footer />

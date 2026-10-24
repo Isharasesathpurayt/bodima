@@ -71,7 +71,7 @@ export const BodimaLoginScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-gray-50 to-gray-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 flex flex-col justify-between p-4 sm:p-6 transition-colors duration-200">
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_#e8f0e8_0%,_#f7f7f3_50%,_#f7f7f3_100%)] dark:bg-[radial-gradient(ellipse_at_top,_#17271d_0%,_#101713_55%,_#101713_100%)] flex flex-col justify-between p-4 sm:p-6 transition-colors duration-200">
       {/* Top Header Controls */}
       <header className="max-w-md w-full mx-auto flex items-center justify-between py-2">
         <div className="flex items-center gap-2.5">
@@ -142,7 +142,7 @@ export const BodimaLoginScreen: React.FC = () => {
           </button>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-gray-200/80 dark:border-slate-800 overflow-hidden">
+        <div className="bg-white/95 dark:bg-slate-900/95 rounded-[2rem] shadow-[0_24px_80px_-36px_rgba(33,58,41,0.4)] border border-[#e6e9df] dark:border-slate-800 overflow-hidden">
           {/* Step 2 Pill & Header */}
           <div className="px-6 pt-6 pb-4 border-b border-gray-100 dark:border-slate-800/80 bg-gray-50/50 dark:bg-slate-800/30">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-800 mb-2">

@@ -15,9 +15,10 @@ try {
   }
 } catch {}
 
-// Built-in Default Supabase Cloud Database Configuration
-export const DEFAULT_SUPABASE_URL = 'https://raorqkbudgikxlzbqxpn.supabase.co';
-export const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_7LP-MDQDmnFmQrxHxOiJtA_YIYssFng';
+// Configure Supabase with environment variables or the Settings screen.
+// Never ship a project's credentials as application defaults.
+export const DEFAULT_SUPABASE_URL = '';
+export const DEFAULT_SUPABASE_ANON_KEY = '';
 
 // Get Supabase credentials from LocalStorage or environment variables or defaults
 export const getSupabaseConfig = () => {

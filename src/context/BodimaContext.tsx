@@ -208,7 +208,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         apiFetch(`/api/users?bodimaId=${bodimaId}`)
           .then(r => (r.ok ? r.json() : null))
           .then(data => {
-            if (data && data.length) {
+            if (Array.isArray(data)) {
               setMembers(
                 data.map((u: any) => ({
                   id: u.id,
@@ -235,7 +235,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         apiFetch(`/api/collections?bodimaId=${bodimaId}`)
           .then(r => (r.ok ? r.json() : null))
           .then(data => {
-            if (data && data.length) setCollections(data);
+            if (Array.isArray(data)) setCollections(data);
           })
           .catch(() => {});
       }
@@ -248,7 +248,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         apiFetch(`/api/expenses?bodimaId=${bodimaId}`)
           .then(r => (r.ok ? r.json() : null))
           .then(data => {
-            if (data && data.length) setExpenses(data);
+            if (Array.isArray(data)) setExpenses(data);
           })
           .catch(() => {});
       }
@@ -261,7 +261,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         apiFetch(`/api/shopping?bodimaId=${bodimaId}`)
           .then(r => (r.ok ? r.json() : null))
           .then(data => {
-            if (data && data.length) setShoppingList(data);
+            if (Array.isArray(data)) setShoppingList(data);
           })
           .catch(() => {});
       }
@@ -312,6 +312,11 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     setMembers(prev => [...prev, newMember]);
     cloudDb.saveMember(newMember, bodimaId);
+    apiFetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...newMember, bodimaId })
+    }).catch(err => console.error('Failed to save member to backend:', err));
 
     // Also add to any existing active collection pools as unpaid
     setCollections(prev =>
@@ -339,6 +344,11 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (m.id === id) {
         const updated = { ...m, ...updates };
         cloudDb.saveMember(updated, bodimaId);
+        apiFetch(`/api/users/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        }).catch(err => console.error('Failed to update member on backend:', err));
         return updated;
       }
       return m;
@@ -347,6 +357,8 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const deleteMember = (id: string) => {
     setMembers(prev => prev.filter(m => m.id !== id));
+    apiFetch(`/api/users/${id}`, { method: 'DELETE' })
+      .catch(err => console.error('Failed to delete member from backend:', err));
   };
 
   // Collection actions
@@ -404,6 +416,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
       body: JSON.stringify({
+        id: poolId,
         ...data,
         bodimaId,
         participatingMemberIds: targetMemberIds,
@@ -636,6 +649,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             : [...item.votes, memberId]
         };
         cloudDb.saveShopping(updated);
+        apiFetch(`/api/shopping/${requestId}/vote`, { method: 'POST' }).catch(() => {});
         return updated;
       })
     );
@@ -647,6 +661,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (item.id === requestId) {
           const updated = { ...item, isPurchased: !item.isPurchased };
           cloudDb.saveShopping(updated);
+          apiFetch(`/api/shopping/${requestId}/purchased`, { method: 'PATCH' }).catch(() => {});
           return updated;
         }
         return item;
@@ -657,6 +672,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const deleteShoppingRequest = (requestId: string) => {
     setShoppingList(prev => prev.filter(item => item.id !== requestId));
     cloudDb.deleteShopping(requestId);
+    apiFetch(`/api/shopping/${requestId}`, { method: 'DELETE' }).catch(() => {});
   };
 
   const convertShoppingListToExpense = (paidById: string, receiptUrl?: string) => {
@@ -686,6 +702,7 @@ export const BodimaProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Mark all as purchased
     setShoppingList(prev => prev.map(item => ({ ...item, isPurchased: true })));
+    apiFetch('/api/shopping/mark-purchased', { method: 'PATCH' }).catch(() => {});
   };
 
   // Helper & computed functions

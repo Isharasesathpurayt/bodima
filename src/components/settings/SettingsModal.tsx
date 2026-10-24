@@ -30,7 +30,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { getSupabaseConfig, saveSupabaseConfig, SUPABASE_SQL_SETUP } from '../../lib/supabase';
-import { getCustomApiUrl, saveCustomApiUrl } from '../../lib/apiClient';
+import { apiFetch, getCustomApiUrl, saveCustomApiUrl } from '../../lib/apiClient';
 import { cloudDb } from '../../lib/cloudDb';
 
 export const SettingsModal: React.FC = () => {
@@ -142,28 +142,40 @@ export const SettingsModal: React.FC = () => {
       if (res.success) {
         setTestStatus('success');
         setTestMessage(res.message);
-      } else {
-        setTestStatus('error');
-        setTestMessage(res.message);
+        return;
       }
-    } else if (customApiUrl.trim()) {
+
       try {
-        const cleanUrl = customApiUrl.trim().replace(/\/+$/, '');
-        const res = await fetch(`${cleanUrl}/api/health`, { method: 'GET' });
-        if (res.ok) {
+        const backendResponse = await apiFetch('/api/health');
+        if (backendResponse.ok) {
           setTestStatus('success');
-          setTestMessage(language === 'si' ? 'සාර්ථකව Custom Backend එකට සම්බන්ධ විය!' : 'Connected to Custom Backend successfully!');
+          setTestMessage(language === 'si'
+            ? `SQLite දත්ත සමුදාය සම්බන්ධයි. Supabase පරීක්ෂාව: ${res.message}`
+            : `SQLite database connected. Supabase check: ${res.message}`);
         } else {
           setTestStatus('error');
-          setTestMessage(`Server returned HTTP ${res.status}`);
+          setTestMessage(`${res.message} · SQLite API returned HTTP ${backendResponse.status}`);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         setTestStatus('error');
-        setTestMessage(err.message || 'සර්වර් එක සම්බන්ධ කරගත නොහැක');
+        const message = err instanceof Error ? err.message : 'Server unavailable';
+        setTestMessage(`${res.message} · ${message}`);
       }
-    } else {
+      return;
+    }
+
+    try {
+      const backendResponse = await apiFetch('/api/health');
+      if (backendResponse.ok) {
+        setTestStatus('success');
+        setTestMessage(language === 'si' ? 'SQLite දත්ත සමුදාය සාර්ථකව සම්බන්ධයි.' : 'SQLite database connected successfully.');
+      } else {
+        setTestStatus('error');
+        setTestMessage(`Server returned HTTP ${backendResponse.status}`);
+      }
+    } catch (err: unknown) {
       setTestStatus('error');
-      setTestMessage(language === 'si' ? 'කරුණාකර Supabase Project URL සහ Key හෝ Custom Server URL ඇතුළත් කරන්න.' : 'Please enter Supabase URL & Key or Custom Server URL.');
+      setTestMessage(err instanceof Error ? err.message : (language === 'si' ? 'සර්වර් එක සම්බන්ධ කරගත නොහැක' : 'Could not connect to the server'));
     }
   };
 
@@ -584,8 +596,8 @@ export const SettingsModal: React.FC = () => {
                   </h4>
                   <p className="text-[11px] opacity-80 mt-0.5">
                     {isSupabaseActive
-                      ? (language === 'si' ? 'ඔබගේ බෝඩිමේ සියලු සාමාජිකයින්ට එකම දත්ත සජීවීව පෙනේ.' : 'All boarders sync real-time via Supabase.')
-                      : (language === 'si' ? 'යාලුවන් අතර දත්ත Share කිරීමට නොමිලේ Supabase සම්බන්ධ කරන්න.' : 'Connect free Supabase DB to share data across devices.')}
+                      ? (language === 'si' ? 'Supabase සැකසුම ඇත. සැබෑ සම්බන්ධතාවය තහවුරු කිරීමට පහත පරීක්ෂාව භාවිතා කරන්න.' : 'Supabase is configured. Use the connection check below to confirm it works.')
+                      : (language === 'si' ? 'දත්ත සර්වරයේ SQLite දත්ත සමුදායට සුරැකේ. වෙනත් උපාංග සමඟ බෙදාගැනීමට සර්වරය සබැඳිව තිබිය යුතුයි.' : 'Data is saved to the server SQLite database. The server must be online to share across devices.')}
                   </p>
                 </div>
               </div>

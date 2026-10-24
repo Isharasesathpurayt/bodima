@@ -63,21 +63,25 @@ export const HomeView: React.FC = () => {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Top Banner / Welcome & Quick Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <section className="relative overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-5 rounded-3xl border border-[#e6e9df] dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-5 sm:px-7 sm:py-6 shadow-[0_12px_32px_-24px_rgba(31,51,37,0.35)]">
+        <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-16 h-44 w-44 rounded-full bg-emerald-100/70 dark:bg-emerald-900/20 blur-2xl" />
         <div>
+          <p className="mb-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-400">
+            {language === 'si' ? 'එකට ජීවත් වෙමු, එකට සැලසුම් කරමු' : 'A little more organised, together'}
+          </p>
           <h1 className="text-xl sm:text-2xl font-black text-gray-900 dark:text-white tracking-tight flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
+            <div className="w-9 h-9 rounded-2xl bg-emerald-700 text-white flex items-center justify-center shadow-sm">
               <PiggyBank className="w-5 h-5" />
             </div>
             <span>{t.home.title}</span>
           </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
             {t.home.subtitle}
           </p>
         </div>
 
         {/* Quick Action Buttons */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        <div className="relative flex items-center gap-2 self-start sm:self-auto">
           <button
             onClick={() => setIsAddExpenseOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-gray-300 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800 text-gray-700 dark:text-gray-200 font-bold text-xs shadow-sm transition-all"
@@ -94,15 +98,15 @@ export const HomeView: React.FC = () => {
             <span>{t.home.addCollection}</span>
           </button>
         </div>
-      </div>
+      </section>
 
       {/* Overdue Urgent Alert if any missed payments */}
       <OverdueAlerts />
 
       {/* HERO FINANCIAL BALANCE KPI CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         {/* Card 1: Total Collected */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-gray-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-[#e6e9df] dark:border-slate-800 shadow-[0_10px_28px_-24px_rgba(31,51,37,0.45)] relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
               {t.home.totalCollected}
@@ -124,7 +128,7 @@ export const HomeView: React.FC = () => {
         </div>
 
         {/* Card 2: Total Spent / Expenses */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-gray-200/90 dark:border-slate-800 shadow-sm relative overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-[#e6e9df] dark:border-slate-800 shadow-[0_10px_28px_-24px_rgba(31,51,37,0.45)] relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
               {t.home.totalSpent}
@@ -148,8 +152,8 @@ export const HomeView: React.FC = () => {
         {/* Card 3: Net Remaining Balance */}
         <div className={`rounded-2xl p-5 border-2 shadow-md relative overflow-hidden flex flex-col justify-between ${
           summary.remainingBalance >= 0
-            ? 'bg-gradient-to-br from-emerald-600 to-teal-700 text-white border-emerald-500/50 shadow-emerald-700/20'
-            : 'bg-gradient-to-br from-rose-600 to-amber-700 text-white border-rose-500/50 shadow-rose-700/20'
+          ? 'bg-gradient-to-br from-[#246444] to-[#397c5b] text-white border-emerald-500/30 shadow-emerald-900/10'
+            : 'bg-gradient-to-br from-rose-700 to-[#9c573b] text-white border-rose-500/30 shadow-rose-900/10'
         }`}>
           <div>
             <div className="flex items-center justify-between">

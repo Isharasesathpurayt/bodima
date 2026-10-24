@@ -1,6 +1,13 @@
 import { getSupabase } from './supabase';
 import { BoardingMember, CollectionPool, ExpenseItem, ShoppingRequest } from '../types';
 
+const throwOnDatabaseError = (error: { message: string } | null) => {
+  if (error) {
+    console.error('Supabase database request failed:', error.message);
+    throw error;
+  }
+};
+
 // Cloud Database Bridge for Supabase
 export const cloudDb = {
   // Test connection to Supabase
@@ -62,7 +69,7 @@ export const cloudDb = {
     if (!supabase) return false;
 
     try {
-      await supabase.from('users').upsert({
+      const { error } = await supabase.from('users').upsert({
         id: member.id,
         bodima_id: bodimaId,
         name: member.name,
@@ -77,6 +84,7 @@ export const cloudDb = {
         bank_account_name: member.bankDetails?.accountName,
         bank_branch: member.bankDetails?.branch
       });
+      throwOnDatabaseError(error);
       return true;
     } catch {
       return false;
@@ -139,7 +147,7 @@ export const cloudDb = {
     if (!supabase) return false;
 
     try {
-      await supabase.from('collections').upsert({
+      const { error } = await supabase.from('collections').upsert({
         id: pool.id,
         bodima_id: pool.bodimaId,
         title_si: pool.titleSi,
@@ -155,6 +163,7 @@ export const cloudDb = {
         collector_bank_info: pool.collectorBankDetails,
         is_completed: pool.isCompleted
       });
+      throwOnDatabaseError(error);
 
       // Save payments
       if (pool.payments && pool.payments.length > 0) {
@@ -168,7 +177,8 @@ export const cloudDb = {
           payment_method: p.paymentMethod,
           note: p.note
         }));
-        await supabase.from('payments').upsert(payRows);
+        const { error: paymentsError } = await supabase.from('payments').upsert(payRows);
+        throwOnDatabaseError(paymentsError);
       }
       return true;
     } catch {
@@ -181,15 +191,13 @@ export const cloudDb = {
     if (!supabase) return false;
 
     try {
-      await supabase.from('payments').upsert({
-        id: `p_${collectionId}_${memberId}`,
-        collection_id: collectionId,
-        user_id: memberId,
+      const { error } = await supabase.from('payments').update({
         is_paid: isPaid,
         paid_at: isPaid ? new Date().toISOString() : null,
         payment_method: method,
         note: note
-      });
+      }).eq('collection_id', collectionId).eq('user_id', memberId);
+      throwOnDatabaseError(error);
       return true;
     } catch {
       return false;
@@ -234,7 +242,7 @@ export const cloudDb = {
     if (!supabase) return false;
 
     try {
-      await supabase.from('expenses').upsert({
+      const { error } = await supabase.from('expenses').upsert({
         id: expense.id,
         bodima_id: expense.bodimaId,
         title_si: expense.titleSi,
@@ -248,6 +256,7 @@ export const cloudDb = {
         notes: expense.notes,
         collection_pool_id: expense.collectionPoolId
       });
+      throwOnDatabaseError(error);
       return true;
     } catch {
       return false;
@@ -259,7 +268,8 @@ export const cloudDb = {
     if (!supabase) return false;
 
     try {
-      await supabase.from('expenses').delete().eq('id', id);
+      const { error } = await supabase.from('expenses').delete().eq('id', id);
+      throwOnDatabaseError(error);
       return true;
     } catch {
       return false;
@@ -305,7 +315,7 @@ export const cloudDb = {
     if (!supabase) return false;
 
     try {
-      await supabase.from('shopping_requests').upsert({
+      const { error } = await supabase.from('shopping_requests').upsert({
         id: item.id,
         bodima_id: item.bodimaId,
         catalog_item_id: item.catalogItemId,
@@ -320,6 +330,7 @@ export const cloudDb = {
         votes: item.votes,
         notes: item.notes
       });
+      throwOnDatabaseError(error);
       return true;
     } catch {
       return false;
@@ -331,7 +342,8 @@ export const cloudDb = {
     if (!supabase) return false;
 
     try {
-      await supabase.from('shopping_requests').delete().eq('id', id);
+      const { error } = await supabase.from('shopping_requests').delete().eq('id', id);
+      throwOnDatabaseError(error);
       return true;
     } catch {
       return false;

@@ -9,7 +9,8 @@ import db from './db.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'bodima_super_secret_jwt_key_2026';
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'local-development-only-secret');
+if (!JWT_SECRET) throw new Error('JWT_SECRET must be configured in production.');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,6 +18,16 @@ const distPath = path.join(__dirname, '../dist');
 
 app.use(cors());
 app.use(express.json({ limit: '20mb' })); // Support base64 profile & receipt photos
+
+app.get('/api/health', (_req, res) => {
+  try {
+    const database = db.prepare('SELECT sqlite_version() AS version').get();
+    res.json({ status: 'ok', database: 'sqlite', version: database.version });
+  } catch (error) {
+    console.error('Database health check failed:', error);
+    res.status(503).json({ status: 'error', database: 'unavailable' });
+  }
+});
 
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
@@ -34,6 +45,24 @@ const authenticateToken = (req, res, next) => {
     req.user = user;
     next();
   });
+};
+
+const requireBodimaAccess = (req, res, next) => {
+  const bodimaId = req.user?.bodimaId;
+  if (!bodimaId) return res.status(403).json({ error: 'පළමුව බෝඩිමට සම්බන්ධ වන්න' });
+  const requestedBodimaId = req.query.bodimaId || req.body?.bodimaId;
+  if (requestedBodimaId && requestedBodimaId !== bodimaId) {
+    return res.status(403).json({ error: 'මෙම බෝඩිමේ දත්ත වෙත ප්‍රවේශ වීමට අවසර නැත' });
+  }
+  req.bodimaId = bodimaId;
+  next();
+};
+
+const requireBodimaAdmin = (req, res, next) => {
+  if (!['admin', 'collector'].includes(req.user?.role)) {
+    return res.status(403).json({ error: 'මෙම ක්‍රියාව සඳහා භාරකරුගේ අවසරය අවශ්‍යයි' });
+  }
+  next();
 };
 
 // Formatter for User Object
@@ -59,27 +88,20 @@ const formatUser = (u) => ({
 // --- USER AUTHENTICATION ROUTES (පරිශීලක පිවිසුම) ---
 
 // 1. Get quick users list for easy login/selection
-app.get('/api/auth/quick-users', (req, res) => {
-  try {
-    const users = db.prepare('SELECT * FROM users WHERE is_active = 1 ORDER BY name ASC').all();
-    res.json(users.map(formatUser));
-  } catch (error) {
-    res.status(500).json({ error: 'පරිශීලක ලැයිස්තුව ලබාගැනීමට නොහැකි විය' });
-  }
-});
+app.get('/api/auth/quick-users', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // 2. User login with Phone or Name and Password
 app.post('/api/auth/user-login', (req, res) => {
   try {
     const { identifier, password } = req.body;
-    if (!identifier) {
-      return res.status(400).json({ error: 'දුරකථන අංකය හෝ නම ඇතුළත් කරන්න' });
+    if (!identifier || !password) {
+      return res.status(400).json({ error: 'දුරකථන අංකය/නම සහ මුරපදය ඇතුළත් කරන්න' });
     }
 
     const trimmed = identifier.trim();
     const user = db.prepare(`
       SELECT * FROM users 
-      WHERE LOWER(name) = ? OR LOWER(name) LIKE ? OR phone = ? OR phone LIKE ? OR LOWER(email) = ? OR id = ?
+      WHERE is_active = 1 AND (LOWER(name) = ? OR LOWER(name) LIKE ? OR phone = ? OR phone LIKE ? OR LOWER(email) = ? OR id = ?)
       LIMIT 1
     `).get(trimmed.toLowerCase(), `%${trimmed.toLowerCase()}%`, trimmed, `%${trimmed}%`, trimmed.toLowerCase(), trimmed);
 
@@ -88,12 +110,8 @@ app.post('/api/auth/user-login', (req, res) => {
     }
 
     // Check password if provided, or verify password_hash
-    if (password && user.password_hash) {
-      const match = bcrypt.compareSync(password.trim(), user.password_hash);
-      const isDefault = password.trim() === '1234' || password.trim() === '123456';
-      if (!match && !isDefault) {
-        return res.status(401).json({ error: 'මුරපදය (Password) වැරදියි!' });
-      }
+    if (!user.password_hash || !bcrypt.compareSync(password.trim(), user.password_hash)) {
+      return res.status(401).json({ error: 'මුරපදය (Password) වැරදියි!' });
     }
 
     const userObj = formatUser(user);
@@ -165,39 +183,7 @@ app.post('/api/auth/user-register', (req, res) => {
 });
 
 // 4. Quick Login with User ID
-app.post('/api/auth/quick-login', (req, res) => {
-  try {
-    const { userId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ error: 'පරිශීලකයා තෝරන්න' });
-    }
-
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
-    if (!user) {
-      return res.status(404).json({ error: 'පරිශීලකයා හමු නොවීය' });
-    }
-
-    const userObj = formatUser(user);
-    const token = jwt.sign(userObj, JWT_SECRET, { expiresIn: '30d' });
-
-    let bodimaObj = null;
-    if (user.bodima_id) {
-      const bodima = db.prepare('SELECT id, name, password FROM bodimas WHERE id = ?').get(user.bodima_id);
-      if (bodima) {
-        bodimaObj = bodima;
-      }
-    }
-
-    res.json({
-      success: true,
-      user: userObj,
-      bodima: bodimaObj,
-      token
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'ලොග් වීමේදී දෝෂයක් ඇති විය' });
-  }
-});
+app.post('/api/auth/quick-login', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // 5. Connect authenticated User to Bodima (බෝඩිමට සම්බන්ධ වීම)
 app.post('/api/bodima/connect', authenticateToken, (req, res) => {
@@ -243,7 +229,7 @@ app.post('/api/bodima/connect', authenticateToken, (req, res) => {
       bodima: {
         id: bodima.id,
         name: bodima.name,
-        password: bodima.password
+        password: password.trim()
       },
       user: userObj,
       token,
@@ -258,18 +244,13 @@ app.post('/api/bodima/connect', authenticateToken, (req, res) => {
 // --- BODIMA MULTI-TENANT ROUTES ---
 
 // 1. Register a New Boarding House (බෝඩිමක් ලියාපදිංචි කිරීම)
-app.post('/api/bodima/register', (req, res) => {
+app.post('/api/bodima/register', authenticateToken, (req, res) => {
   try {
-    const { name, password, creatorName, creatorPhone } = req.body;
+    const { name, password } = req.body;
 
-    let authUserId = null;
-    const authHeader = req.headers['authorization'];
-    if (authHeader) {
-      try {
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, JWT_SECRET);
-        authUserId = decoded?.id;
-      } catch (e) {}
+    const authUserId = req.user.id;
+    if (req.user.bodimaId) {
+      return res.status(403).json({ error: 'ඔබ දැනටමත් බෝඩිමකට සම්බන්ධයි' });
     }
 
     if (!name || !password) {
@@ -286,23 +267,9 @@ app.post('/api/bodima/register', (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const passwordHash = bcrypt.hashSync(password.trim(), 10);
 
-    let creatorId = authUserId;
-    let finalCreatorName = creatorName ? creatorName.trim() : 'භාරකරු';
-    let finalCreatorPhone = creatorPhone || '+94';
-
-    if (authUserId) {
-      const existingUser = db.prepare('SELECT * FROM users WHERE id = ?').get(authUserId);
-      if (existingUser) {
-        finalCreatorName = existingUser.name;
-        finalCreatorPhone = existingUser.phone;
-      } else {
-        creatorId = `u_${Date.now()}`;
-      }
-    } else {
-      creatorId = `u_${Date.now()}`;
-      if (!creatorName) {
-        return res.status(400).json({ error: 'ඔබේ නම ඇතුළත් කරන්න' });
-      }
+    const creatorId = authUserId;
+    if (!db.prepare('SELECT id FROM users WHERE id = ?').get(creatorId)) {
+      return res.status(401).json({ error: 'ගිණුම නැවත පිවිසෙන්න' });
     }
 
     const runRegistration = db.transaction(() => {
@@ -310,22 +277,13 @@ app.post('/api/bodima/register', (req, res) => {
       db.prepare(`
         INSERT INTO bodimas (id, name, password, created_by, created_at)
         VALUES (?, ?, ?, ?, ?)
-      `).run(bodimaId, trimmedName, password.trim(), creatorId, today);
+      `).run(bodimaId, trimmedName, passwordHash, creatorId, today);
 
-      if (authUserId && db.prepare('SELECT id FROM users WHERE id = ?').get(authUserId)) {
-        // Update existing authenticated user to admin of this new bodima
-        db.prepare(`
-          UPDATE users 
-          SET bodima_id = ?, role = 'admin', role_title_si = 'මාසික කුලී භාරකරු', role_title_en = 'Rent Collector / Admin'
-          WHERE id = ?
-        `).run(bodimaId, authUserId);
-      } else {
-        // Create Creator User
-        db.prepare(`
-          INSERT INTO users (id, name, phone, email, password_hash, role, role_title_si, role_title_en, avatar, bodima_id, created_at)
-          VALUES (?, ?, ?, ?, ?, 'admin', 'මාසික කුලී භාරකරු', 'Rent Collector / Admin', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', ?, ?)
-        `).run(creatorId, finalCreatorName, finalCreatorPhone, `${creatorId}@bodima.lk`, passwordHash, bodimaId, today);
-      }
+      db.prepare(`
+        UPDATE users
+        SET bodima_id = ?, role = 'admin', role_title_si = 'මාසික කුලී භාරකරු', role_title_en = 'Rent Collector / Admin'
+        WHERE id = ?
+      `).run(bodimaId, authUserId);
     });
 
     runRegistration();
@@ -355,9 +313,10 @@ app.post('/api/bodima/register', (req, res) => {
 });
 
 // 2. Join an Existing Boarding House (බෝඩිමට සම්බන්ධ වීම)
-app.post('/api/bodima/join', (req, res) => {
+app.post('/api/bodima/join', authenticateToken, (req, res) => {
   try {
-    const { name, password, userName, userPhone, userId } = req.body;
+    const { name, password } = req.body;
+    const userId = req.user.id;
 
     if (!name || !password) {
       return res.status(400).json({ error: 'බෝඩිමේ නම සහ මුරපදය ඇතුලත් කරන්න' });
@@ -370,62 +329,23 @@ app.post('/api/bodima/join', (req, res) => {
       return res.status(404).json({ error: 'මෙම නමින් බෝඩිමක් හමු නොවීය. කරුණාකර නම නිවැරදිදැයි පරීක්ෂා කරන්න.' });
     }
 
-    if (bodima.password !== password.trim()) {
+    const validPassword = bodima.password.startsWith('$2')
+      ? bcrypt.compareSync(password.trim(), bodima.password)
+      : bodima.password === password.trim();
+    if (!validPassword) {
       return res.status(401).json({ error: 'බෝඩිමේ මුරපදය (Password) වැරදියි!' });
     }
 
     let userObj = null;
 
-    // Check if an existing user was selected or specified
-    if (userId) {
-      userObj = db.prepare('SELECT id, name, phone, email, role, role_title_si as roleTitleSi, role_title_en as roleTitleEn, avatar, bodima_id as bodimaId FROM users WHERE id = ?').get(userId);
-    } else if (userName) {
-      // Check if user already exists in this Bodima with this name
-      const existingUser = db.prepare('SELECT id, name, phone, email, role, role_title_si as roleTitleSi, role_title_en as roleTitleEn, avatar, bodima_id as bodimaId FROM users WHERE bodima_id = ? AND LOWER(name) = ?').get(bodima.id, userName.trim().toLowerCase());
-
-      if (existingUser) {
-        userObj = existingUser;
-      } else {
-        // Create new member in this Bodima
-        const newUserId = `u_${Date.now()}`;
-        const today = new Date().toISOString().split('T')[0];
-        const newAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
-        const defaultHash = bcrypt.hashSync(password.trim() || '1234', 10);
-
-        db.prepare(`
-          INSERT INTO users (id, name, phone, email, password_hash, role, role_title_si, role_title_en, avatar, bodima_id, created_at)
-          VALUES (?, ?, ?, ?, ?, 'member', 'සාමාජික', 'Boarder', ?, ?, ?)
-        `).run(newUserId, userName.trim(), userPhone || '+94', `${newUserId}@bodima.lk`, defaultHash, newAvatar, bodima.id, today);
-
-        // Add this new member to active collections
-        const activeCollections = db.prepare('SELECT id, target_per_person FROM collections WHERE bodima_id = ? AND is_completed = 0').all(bodima.id);
-        const insertPayment = db.prepare('INSERT INTO payments (id, collection_id, user_id, amount, is_paid) VALUES (?, ?, ?, ?, 0)');
-        activeCollections.forEach((c, idx) => {
-          insertPayment.run(`p_${Date.now()}_${idx}`, c.id, newUserId, c.target_per_person);
-        });
-
-        userObj = {
-          id: newUserId,
-          name: userName.trim(),
-          phone: userPhone || '+94',
-          role: 'member',
-          roleTitleSi: 'සාමාජික',
-          avatar: newAvatar,
-          bodimaId: bodima.id
-        };
-      }
-    } else {
-      // Default to the first user or creator of this Bodima
-      const firstUser = db.prepare('SELECT id, name, phone, email, role, role_title_si as roleTitleSi, role_title_en as roleTitleEn, avatar, bodima_id as bodimaId FROM users WHERE bodima_id = ? LIMIT 1').get(bodima.id);
-      userObj = firstUser || {
-        id: `u_${Date.now()}`,
-        name: 'සාමාජික',
-        role: 'member',
-        roleTitleSi: 'සාමාජික',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-        bodimaId: bodima.id
-      };
+    if (req.user.bodimaId && req.user.bodimaId !== bodima.id) {
+      return res.status(403).json({ error: 'වෙනත් බෝඩිමකට මාරුවීමට පළමුව දැනට ඇති සම්බන්ධතාවයෙන් ඉවත් වන්න' });
     }
+    const userRow = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    if (!userRow) return res.status(404).json({ error: 'පරිශීලකයා හමු නොවීය' });
+    db.prepare('UPDATE users SET bodima_id = ? WHERE id = ?').run(bodima.id, userId);
+    const updatedUser = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    userObj = formatUser(updatedUser);
 
     const token = jwt.sign(userObj, JWT_SECRET, { expiresIn: '30d' });
 
@@ -434,7 +354,7 @@ app.post('/api/bodima/join', (req, res) => {
       bodima: {
         id: bodima.id,
         name: bodima.name,
-        password: bodima.password
+        password: password.trim()
       },
       user: userObj,
       token,
@@ -461,7 +381,7 @@ app.post('/api/user/profile', authenticateToken, (req, res) => {
     const updatedPhone = phone !== undefined ? phone.trim() : user.phone;
     const updatedAvatar = avatar !== undefined ? avatar : user.avatar;
     const updatedRoleTitle = roleTitleSi !== undefined ? roleTitleSi : user.role_title_si;
-    const updatedRole = role !== undefined ? role : user.role;
+    const updatedRole = user.role === 'admin' && role !== undefined ? role : user.role;
     const updatedEats = eatsAtBodima !== undefined ? (eatsAtBodima ? 1 : 0) : user.eats_at_bodima;
 
     const bankName = bankDetails?.bankName !== undefined ? bankDetails.bankName : user.bank_name;
@@ -513,17 +433,8 @@ app.post('/api/user/profile', authenticateToken, (req, res) => {
 // --- DATA ROUTES SCOPED BY BODIMA ---
 
 // Get Users of a Bodima
-app.get('/api/users', (req, res) => {
-  const { bodimaId } = req.query;
-  let query = 'SELECT id, name, phone, email, role, role_title_si as roleTitleSi, role_title_en as roleTitleEn, avatar, is_active as isActive, bodima_id as bodimaId, bank_name as bankName, bank_account as accountNumber, bank_account_name as accountName, bank_branch as branch, eats_at_bodima as eatsAtBodima FROM users';
-  const params = [];
-
-  if (bodimaId) {
-    query += ' WHERE bodima_id = ?';
-    params.push(bodimaId);
-  }
-
-  const users = db.prepare(query).all(...params);
+app.get('/api/users', authenticateToken, requireBodimaAccess, (req, res) => {
+  const users = db.prepare('SELECT id, name, phone, email, role, role_title_si as roleTitleSi, role_title_en as roleTitleEn, avatar, is_active as isActive, bodima_id as bodimaId, bank_name as bankName, bank_account as accountNumber, bank_account_name as accountName, bank_branch as branch, eats_at_bodima as eatsAtBodima FROM users WHERE bodima_id = ?').all(req.bodimaId);
 
   const formatted = users.map(u => ({
     id: u.id,
@@ -548,19 +459,52 @@ app.get('/api/users', (req, res) => {
   res.json(formatted);
 });
 
-// Get Collections of a Bodima
-app.get('/api/collections', (req, res) => {
-  const { bodimaId } = req.query;
-  let query = 'SELECT * FROM collections';
-  const params = [];
-
-  if (bodimaId) {
-    query += ' WHERE bodima_id = ?';
-    params.push(bodimaId);
+app.post('/api/users', authenticateToken, requireBodimaAccess, requireBodimaAdmin, (req, res) => {
+  try {
+    const { id: requestedId, name, phone, roleDescriptionSi, roleDescriptionEn, avatar, isActive = true, eatsAtBodima = true } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'නම ඇතුළත් කරන්න' });
+    const id = requestedId || `m_${Date.now()}`;
+    const createdAt = new Date().toISOString().split('T')[0];
+    const addMember = db.transaction(() => {
+      db.prepare(`INSERT INTO users (id, name, phone, role_title_si, role_title_en, avatar, bodima_id, is_active, eats_at_bodima, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, name.trim(), phone || '', roleDescriptionSi || 'සාමාජික', roleDescriptionEn || 'Boarder', avatar || null, req.bodimaId, isActive ? 1 : 0, eatsAtBodima ? 1 : 0, createdAt);
+      const activeCollections = db.prepare('SELECT id, target_per_person FROM collections WHERE bodima_id = ? AND is_completed = 0').all(req.bodimaId);
+      const insertPayment = db.prepare('INSERT INTO payments (id, collection_id, user_id, amount, is_paid) VALUES (?, ?, ?, ?, 0)');
+      activeCollections.forEach((pool, index) => insertPayment.run(`p_${Date.now()}_${index}`, pool.id, id, pool.target_per_person));
+    });
+    addMember();
+    res.status(201).json({ success: true, id });
+  } catch (error) {
+    console.error('Add member error:', error);
+    res.status(500).json({ error: 'සාමාජිකයා එක් කිරීමේදී දෝෂයක් ඇති විය' });
   }
+});
 
-  query += ' ORDER BY created_at DESC';
-  const collections = db.prepare(query).all(...params);
+app.delete('/api/users/:id', authenticateToken, requireBodimaAccess, requireBodimaAdmin, (req, res) => {
+  const member = db.prepare('SELECT id FROM users WHERE id = ? AND bodima_id = ?').get(req.params.id, req.bodimaId);
+  if (!member) return res.status(404).json({ error: 'සාමාජිකයා හමු නොවීය' });
+  db.prepare('DELETE FROM payments WHERE user_id = ?').run(member.id);
+  db.prepare('DELETE FROM users WHERE id = ? AND bodima_id = ?').run(member.id, req.bodimaId);
+  res.json({ success: true });
+});
+
+app.patch('/api/users/:id', authenticateToken, requireBodimaAccess, requireBodimaAdmin, (req, res) => {
+  try {
+    const member = db.prepare('SELECT * FROM users WHERE id = ? AND bodima_id = ?').get(req.params.id, req.bodimaId);
+    if (!member) return res.status(404).json({ error: 'සාමාජිකයා හමු නොවීය' });
+    const { name, phone, roleDescriptionSi, roleDescriptionEn, avatar, isActive, eatsAtBodima } = req.body;
+    db.prepare(`UPDATE users SET name = ?, phone = ?, role_title_si = ?, role_title_en = ?, avatar = ?, is_active = ?, eats_at_bodima = ? WHERE id = ? AND bodima_id = ?`)
+      .run(name ?? member.name, phone ?? member.phone, roleDescriptionSi ?? member.role_title_si, roleDescriptionEn ?? member.role_title_en, avatar ?? member.avatar, isActive === undefined ? member.is_active : (isActive ? 1 : 0), eatsAtBodima === undefined ? member.eats_at_bodima : (eatsAtBodima ? 1 : 0), member.id, req.bodimaId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Update member error:', error);
+    res.status(500).json({ error: 'සාමාජිකයා යාවත්කාලීන කිරීමේදී දෝෂයක් ඇති විය' });
+  }
+});
+
+// Get Collections of a Bodima
+app.get('/api/collections', authenticateToken, requireBodimaAccess, (req, res) => {
+  const collections = db.prepare('SELECT * FROM collections WHERE bodima_id = ? ORDER BY created_at DESC').all(req.bodimaId);
 
   const results = collections.map(col => {
     const payments = db.prepare(`
@@ -599,7 +543,7 @@ app.get('/api/collections', (req, res) => {
 });
 
 // Create Collection Pool with Selected Participating Members & Bank Info
-app.post('/api/collections', authenticateToken, (req, res) => {
+app.post('/api/collections', authenticateToken, requireBodimaAccess, requireBodimaAdmin, (req, res) => {
   try {
     const {
       titleSi,
@@ -609,15 +553,16 @@ app.post('/api/collections', authenticateToken, (req, res) => {
       dueDate,
       cycle,
       descriptionSi,
-      bodimaId,
       participatingMemberIds,
       collectorBankDetails
     } = req.body;
 
-    const targetBodimaId = bodimaId || req.user.bodimaId;
+    const targetBodimaId = req.bodimaId;
     const collectorId = req.body.collectorId || req.user.id;
+    const collector = db.prepare('SELECT id FROM users WHERE id = ? AND bodima_id = ? AND is_active = 1').get(collectorId, req.bodimaId);
+    if (!collector) return res.status(400).json({ error: 'භාරකරු මෙම බෝඩිමේ සාමාජිකයෙකු විය යුතුයි' });
 
-    const poolId = `col_${Date.now()}`;
+    const poolId = req.body.id || `col_${Date.now()}`;
     const createdAt = new Date().toISOString().split('T')[0];
 
     // Get active users of this bodima
@@ -633,16 +578,21 @@ app.post('/api/collections', authenticateToken, (req, res) => {
       }
     }
 
+    const activeMemberIds = new Set(db.prepare('SELECT id FROM users WHERE bodima_id = ? AND is_active = 1').all(targetBodimaId).map(u => u.id));
+    if (targetMemberIds.some(id => !activeMemberIds.has(id))) {
+      return res.status(400).json({ error: 'තෝරාගත් සාමාජිකයන් මෙම බෝඩිමට අයත් නොවේ' });
+    }
+
     // Get collector's bank details if not provided
     let bankInfo = collectorBankDetails;
     if (!bankInfo) {
-      const collector = db.prepare('SELECT bank_name, bank_account, bank_account_name, bank_branch FROM users WHERE id = ?').get(collectorId);
-      if (collector && collector.bank_account) {
+      const collectorDetails = db.prepare('SELECT bank_name, bank_account, bank_account_name, bank_branch FROM users WHERE id = ? AND bodima_id = ?').get(collectorId, req.bodimaId);
+      if (collectorDetails && collectorDetails.bank_account) {
         bankInfo = {
-          bankName: collector.bank_name,
-          accountNumber: collector.bank_account,
-          accountName: collector.bank_account_name,
-          branch: collector.bank_branch
+          bankName: collectorDetails.bank_name,
+          accountNumber: collectorDetails.bank_account,
+          accountName: collectorDetails.bank_account_name,
+          branch: collectorDetails.bank_branch
         };
       }
     }
@@ -685,10 +635,16 @@ app.post('/api/collections', authenticateToken, (req, res) => {
 });
 
 // Update payment status (ONLY Collector/Admin)
-app.patch('/api/collections/:poolId/payments/:userId', authenticateToken, (req, res) => {
+app.patch('/api/collections/:poolId/payments/:userId', authenticateToken, requireBodimaAccess, (req, res) => {
   try {
     const { poolId, userId } = req.params;
     const { isPaid, paymentMethod = 'cash', note } = req.body;
+
+    const pool = db.prepare('SELECT collector_id FROM collections WHERE id = ? AND bodima_id = ?').get(poolId, req.bodimaId);
+    if (!pool) return res.status(404).json({ error: 'එකතුකිරීම හමු නොවීය' });
+    if (req.user.role !== 'admin' && pool.collector_id !== req.user.id) {
+      return res.status(403).json({ error: 'ගෙවීම් යාවත්කාලීන කිරීමට අවසර නැත' });
+    }
 
     const paidAt = isPaid ? new Date().toISOString().split('T')[0] : null;
 
@@ -709,11 +665,12 @@ app.patch('/api/collections/:poolId/payments/:userId', authenticateToken, (req, 
 });
 
 // Complete / Settle collection pool (එකතුකිරීමේ වැඩේ ඉවර වූ පසු අවසන් කිරීම)
-app.patch('/api/collections/:id/complete', authenticateToken, (req, res) => {
+app.patch('/api/collections/:id/complete', authenticateToken, requireBodimaAccess, requireBodimaAdmin, (req, res) => {
   try {
     const { id } = req.params;
     const { isCompleted = true } = req.body;
-    db.prepare('UPDATE collections SET is_completed = ? WHERE id = ?').run(isCompleted ? 1 : 0, id);
+    const result = db.prepare('UPDATE collections SET is_completed = ? WHERE id = ? AND bodima_id = ?').run(isCompleted ? 1 : 0, id, req.bodimaId);
+    if (!result.changes) return res.status(404).json({ error: 'එකතුකිරීම හමු නොවීය' });
     res.json({ success: true, isCompleted: Boolean(isCompleted) });
   } catch (error) {
     console.error('Complete collection error:', error);
@@ -722,11 +679,13 @@ app.patch('/api/collections/:id/complete', authenticateToken, (req, res) => {
 });
 
 // Delete a collection pool and its associated payments
-app.delete('/api/collections/:id', authenticateToken, (req, res) => {
+app.delete('/api/collections/:id', authenticateToken, requireBodimaAccess, requireBodimaAdmin, (req, res) => {
   try {
     const { id } = req.params;
+    const collection = db.prepare('SELECT id FROM collections WHERE id = ? AND bodima_id = ?').get(id, req.bodimaId);
+    if (!collection) return res.status(404).json({ error: 'එකතුකිරීම හමු නොවීය' });
     db.prepare('DELETE FROM payments WHERE collection_id = ?').run(id);
-    db.prepare('DELETE FROM collections WHERE id = ?').run(id);
+    db.prepare('DELETE FROM collections WHERE id = ? AND bodima_id = ?').run(id, req.bodimaId);
     res.json({ success: true, message: 'එකතුකිරීම සාර්ථකව ඉවත් කරන ලදී' });
   } catch (error) {
     console.error('Delete collection error:', error);
@@ -735,8 +694,7 @@ app.delete('/api/collections/:id', authenticateToken, (req, res) => {
 });
 
 // Get Expenses of a Bodima
-app.get('/api/expenses', (req, res) => {
-  const { bodimaId } = req.query;
+app.get('/api/expenses', authenticateToken, requireBodimaAccess, (req, res) => {
   let query = `
     SELECT e.id, e.bodima_id as bodimaId, e.title_si as titleSi, e.title_en as titleEn, e.category, e.amount,
            e.paid_by_id as paidById, e.date, e.receipt_url as receiptUrl, e.receipt_name as receiptName,
@@ -746,22 +704,20 @@ app.get('/api/expenses', (req, res) => {
   `;
   const params = [];
 
-  if (bodimaId) {
-    query += ' WHERE e.bodima_id = ?';
-    params.push(bodimaId);
-  }
+  query += ' WHERE e.bodima_id = ?';
+  params.push(req.bodimaId);
 
   query += ' ORDER BY e.date DESC';
   const expenses = db.prepare(query).all(...params);
   res.json(expenses);
 });
 
-app.post('/api/expenses', authenticateToken, (req, res) => {
+app.post('/api/expenses', authenticateToken, requireBodimaAccess, (req, res) => {
   try {
-    const { titleSi, titleEn, category, amount, date, receiptUrl, receiptName, notes, bodimaId } = req.body;
-    const targetBodimaId = bodimaId || req.user.bodimaId;
-    const paidById = req.body.paidById || req.user.id;
-    const id = `exp_${Date.now()}`;
+    const { id: requestedId, titleSi, titleEn, category, amount, date, receiptUrl, receiptName, notes } = req.body;
+    const targetBodimaId = req.bodimaId;
+    const paidById = req.user.id;
+    const id = requestedId || `exp_${Date.now()}`;
     const createdAt = new Date().toISOString().split('T')[0];
 
     db.prepare(`
@@ -776,9 +732,14 @@ app.post('/api/expenses', authenticateToken, (req, res) => {
   }
 });
 
+app.delete('/api/expenses/:id', authenticateToken, requireBodimaAccess, (req, res) => {
+  const result = db.prepare('DELETE FROM expenses WHERE id = ? AND bodima_id = ?').run(req.params.id, req.bodimaId);
+  if (!result.changes) return res.status(404).json({ error: 'වියදම හමු නොවීය' });
+  res.json({ success: true });
+});
+
 // Get Shopping Requests of a Bodima
-app.get('/api/shopping', (req, res) => {
-  const { bodimaId } = req.query;
+app.get('/api/shopping', authenticateToken, requireBodimaAccess, (req, res) => {
   let query = `
     SELECT s.id, s.bodima_id as bodimaId, s.catalog_item_id as catalogItemId, s.name_si as nameSi, s.name_en as nameEn,
            s.unit_price as unitPrice, s.quantity, s.unit, s.requested_by_id as requestedById,
@@ -789,10 +750,8 @@ app.get('/api/shopping', (req, res) => {
   `;
   const params = [];
 
-  if (bodimaId) {
-    query += ' WHERE s.bodima_id = ?';
-    params.push(bodimaId);
-  }
+  query += ' WHERE s.bodima_id = ?';
+  params.push(req.bodimaId);
 
   query += ' ORDER BY s.is_purchased ASC, s.requested_at DESC';
   const items = db.prepare(query).all(...params);
@@ -806,12 +765,12 @@ app.get('/api/shopping', (req, res) => {
   res.json(formatted);
 });
 
-app.post('/api/shopping', authenticateToken, (req, res) => {
+app.post('/api/shopping', authenticateToken, requireBodimaAccess, (req, res) => {
   try {
-    const { nameSi, nameEn, unitPrice, quantity, unit, notes, catalogItemId, bodimaId } = req.body;
-    const targetBodimaId = bodimaId || req.user.bodimaId;
+    const { id: requestedId, nameSi, nameEn, unitPrice, quantity, unit, notes, catalogItemId } = req.body;
+    const targetBodimaId = req.bodimaId;
     const requestedById = req.user.id;
-    const id = `req_${Date.now()}`;
+    const id = requestedId || `req_${Date.now()}`;
     const requestedAt = new Date().toISOString().split('T')[0];
 
     db.prepare(`
@@ -827,12 +786,12 @@ app.post('/api/shopping', authenticateToken, (req, res) => {
 });
 
 // Toggle vote on shopping request
-app.post('/api/shopping/:id/vote', authenticateToken, (req, res) => {
+app.post('/api/shopping/:id/vote', authenticateToken, requireBodimaAccess, (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
 
-    const item = db.prepare('SELECT votes FROM shopping_requests WHERE id = ?').get(id);
+    const item = db.prepare('SELECT votes FROM shopping_requests WHERE id = ? AND bodima_id = ?').get(id, req.bodimaId);
     if (!item) return res.status(404).json({ error: 'අයිතමය හමු නොවීය' });
 
     let votes = item.votes ? JSON.parse(item.votes) : [];
@@ -849,13 +808,25 @@ app.post('/api/shopping/:id/vote', authenticateToken, (req, res) => {
   }
 });
 
+app.patch('/api/shopping/mark-purchased', authenticateToken, requireBodimaAccess, requireBodimaAdmin, (req, res) => {
+  const result = db.prepare('UPDATE shopping_requests SET is_purchased = 1 WHERE bodima_id = ? AND is_purchased = 0').run(req.bodimaId);
+  res.json({ success: true, updated: result.changes });
+});
+
+app.delete('/api/shopping/:id', authenticateToken, requireBodimaAccess, (req, res) => {
+  const result = db.prepare('DELETE FROM shopping_requests WHERE id = ? AND bodima_id = ?').run(req.params.id, req.bodimaId);
+  if (!result.changes) return res.status(404).json({ error: 'අයිතමය හමු නොවීය' });
+  res.json({ success: true });
+});
+
 // Toggle purchased
-app.patch('/api/shopping/:id/purchased', authenticateToken, (req, res) => {
+app.patch('/api/shopping/:id/purchased', authenticateToken, requireBodimaAccess, requireBodimaAdmin, (req, res) => {
   try {
     const { id } = req.params;
-    const current = db.prepare('SELECT is_purchased FROM shopping_requests WHERE id = ?').get(id);
+    const current = db.prepare('SELECT is_purchased FROM shopping_requests WHERE id = ? AND bodima_id = ?').get(id, req.bodimaId);
+    if (!current) return res.status(404).json({ error: 'අයිතමය හමු නොවීය' });
     const newStatus = current.is_purchased ? 0 : 1;
-    db.prepare('UPDATE shopping_requests SET is_purchased = ? WHERE id = ?').run(newStatus, id);
+    db.prepare('UPDATE shopping_requests SET is_purchased = ? WHERE id = ? AND bodima_id = ?').run(newStatus, id, req.bodimaId);
     res.json({ success: true, isPurchased: Boolean(newStatus) });
   } catch (error) {
     res.status(500).json({ error: 'තත්වය වෙනස් කිරීමේදී දෝෂයක් ඇති විය' });
@@ -863,10 +834,10 @@ app.patch('/api/shopping/:id/purchased', authenticateToken, (req, res) => {
 });
 
 // Convert list to expense
-app.post('/api/shopping/convert-to-expense', authenticateToken, (req, res) => {
+app.post('/api/shopping/convert-to-expense', authenticateToken, requireBodimaAccess, (req, res) => {
   try {
-    const paidById = req.body.paidById || req.user.id;
-    const targetBodimaId = req.body.bodimaId || req.user.bodimaId;
+    const paidById = req.user.id;
+    const targetBodimaId = req.bodimaId;
     const unpurchased = db.prepare('SELECT * FROM shopping_requests WHERE bodima_id = ? AND is_purchased = 0').all(targetBodimaId);
 
     if (unpurchased.length === 0) {
