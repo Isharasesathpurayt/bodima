@@ -187,11 +187,7 @@ export const SettingsModal: React.FC = () => {
 
   const handleShareInvite = () => {
     if (!bodima) return;
-    const { url: sbUrl, anonKey: sbKey } = getSupabaseConfig();
-    let inviteUrl = window.location.origin;
-    if (sbUrl && sbKey) {
-      inviteUrl = `${inviteUrl}?db_url=${encodeURIComponent(sbUrl)}&db_key=${encodeURIComponent(sbKey)}`;
-    }
+    const inviteUrl = window.location.origin;
 
     const shareText = language === 'si'
       ? `මචං, අපේ බෝඩිමේ (${bodima.name}) වියදම්, කෑම සල්ලි සහ බිල්පත් බලන්න bodima.lk එකට මෙන්න ලින්ක් එක:\n\n🔗 ${inviteUrl}\n🏠 බෝඩිමේ නම: ${bodima.name}\n🔑 මුරපදය: ${bodima.password || '1234'}\n\nලින්ක් එක ඔබලා කෙලින්ම සම්බන්ධ වෙන්න! 🙏`
@@ -202,11 +198,7 @@ export const SettingsModal: React.FC = () => {
 
   const handleCopyCredentials = () => {
     if (!bodima) return;
-    const { url: sbUrl, anonKey: sbKey } = getSupabaseConfig();
-    let inviteUrl = window.location.origin;
-    if (sbUrl && sbKey) {
-      inviteUrl = `${inviteUrl}?db_url=${encodeURIComponent(sbUrl)}&db_key=${encodeURIComponent(sbKey)}`;
-    }
+    const inviteUrl = window.location.origin;
 
     const creds = language === 'si'
       ? `🔗 ලින්ක් එක: ${inviteUrl}\n🏠 බෝඩිමේ නම: ${bodima.name}\n🔑 මුරපදය: ${bodima.password || '1234'}`

@@ -41,7 +41,7 @@ export const UserLoginScreen: React.FC = () => {
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
-      setError(language === 'si' ? 'කරුණාකර දුරකථන අංකය හෝ නම ඇතුළත් කරන්න' : 'Please enter your phone or name');
+      setError(language === 'si' ? 'කරුණාකර දුරකථන අංකය ඇතුළත් කරන්න' : 'Please enter your phone number');
       return;
     }
 
@@ -196,7 +196,7 @@ export const UserLoginScreen: React.FC = () => {
               <form onSubmit={handleLoginSubmit} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-                    {language === 'si' ? 'දුරකථන අංකය හෝ නම' : 'Phone or Name'}
+                    {language === 'si' ? 'දුරකථන අංකය' : 'Phone number'}
                   </label>
                   <div className="relative">
                     <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />

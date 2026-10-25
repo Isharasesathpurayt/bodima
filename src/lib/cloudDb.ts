@@ -18,10 +18,11 @@ export const cloudDb = {
     }
 
     try {
-      const { error } = await supabase.from('bodimas').select('id').limit(1);
+      const { data, error } = await supabase.rpc('connection_check');
       if (error) {
         return { success: false, message: `දත්ත සමුදාය සම්බන්ධ විය නොහැක: ${error.message}` };
       }
+      if (data !== true) return { success: false, message: 'දත්ත සමුදාය සැකසුම තහවුරු කළ නොහැක.' };
       return { success: true, message: 'සාර්ථකව සම්බන්ධ විය! (Connected to Supabase)' };
     } catch (err: any) {
       return { success: false, message: err.message || 'සම්බන්ධතා දෝෂයක්' };

@@ -1,21 +1,16 @@
 services:
   - type: web
     name: bodima-lk
-    runtime: node
-    plan: starter
-    region: singapore
+    runtime: static
     buildCommand: npm ci && npm run build
-    startCommand: npm start
-    healthCheckPath: /api/health
+    staticPublishPath: ./dist
     autoDeployTrigger: off
-    disk:
-      name: bodima-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_PATH
-        value: /var/data/bodima.db
-      - key: JWT_SECRET
-        generateValue: true
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
